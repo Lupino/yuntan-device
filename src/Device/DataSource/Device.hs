@@ -45,7 +45,7 @@ createDevice un token tp prefix conn = do
           [ "INSERT INTO `", prefix, "_devices` "
           , "(`username`, `token`, `uuid`, `meta`, `type`, `created_at`)"
           , " VALUES "
-          , "(?, ?, ?, ?)"
+          , "(?, ?, ?, ?, ?, ?)"
           ]
 
 getDevice :: DeviceID -> MySQL (Maybe Device)
