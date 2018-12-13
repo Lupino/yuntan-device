@@ -21,10 +21,11 @@ module Device.MQTT
   ) where
 import           Conduit                    (ConduitT, Void, awaitForever,
                                              runConduit, yield, (.|))
-import           Control.Concurrent         (forkOS, forkIO, threadDelay)
-import           Control.Concurrent.STM     (TChan, atomically, cloneTChan,
-                                             newTChanIO, readTChan, retry,
-                                             writeTChan, tryPeekTChan)
+import           Control.Concurrent         (forkIO, forkOS, threadDelay)
+import           Control.Concurrent.STM     (TChan, TQueue, atomically,
+                                             cloneTChan, newTChanIO,
+                                             newTQueueIO, readTChan, readTQueue,
+                                             retry, writeTChan, writeTQueue)
 import           Control.Monad              (forever, void, when)
 import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Trans.Class  (lift)
@@ -67,22 +68,18 @@ data RpcMsg = RpcMsg
   , payload :: !ByteString
   }
 
-foreign export ccall get_message :: Ptr CString -> Ptr CString -> Ptr CInt -> IO ()
+foreign export ccall get_message :: Ptr CString -> Ptr CString -> IO ()
 
-get_message :: Ptr CString -> Ptr CString -> Ptr CInt -> IO ()
-get_message ptr0 ptr1 ptr2 = do
-  r <- atomically $ tryPeekTChan publishChan
-  case r of
-    Nothing -> poke ptr2 0
-    Just RpcMsg{..} -> do
-      t <- newCString topic
-      poke ptr0 t
-      useAsCString payload $ poke ptr1
-      poke ptr2 1
+get_message :: Ptr CString -> Ptr CString -> IO ()
+get_message ptr0 ptr1 = do
+  RpcMsg{..} <- atomically $ readTQueue publishQueue
+  t <- newCString topic
+  poke ptr0 t
+  useAsCString payload $ poke ptr1
 
 
-publishChan :: TChan RpcMsg
-publishChan = unsafePerformIO newTChanIO
+publishQueue :: TQueue RpcMsg
+publishQueue = unsafePerformIO newTQueueIO
 
 subscribeChan :: TChan RpcMsg
 subscribeChan = unsafePerformIO newTChanIO
@@ -160,7 +157,7 @@ newMqttEnv k = do
 
 
 publish :: String -> ByteString -> IO ()
-publish topic payload = atomically $ writeTChan publishChan RpcMsg {..}
+publish topic payload = atomically $ writeTQueue publishQueue RpcMsg {..}
 
 genHex :: Int -> IO String
 genHex n = fix . prettyPrint <$> getEntropy n
