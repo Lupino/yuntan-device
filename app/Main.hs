@@ -4,6 +4,8 @@ module Main
   ( main
   ) where
 
+import           Control.Concurrent                   (forkIO)
+import           Control.Monad                        (void)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
@@ -82,7 +84,7 @@ program Options { getConfigFile  = confFile
 
   mqttEnv <- newMqttEnv prefix
 
-  startMQTT mqttEnv
+  void $ forkIO $ startMQTT mqttEnv
     { mUsername = C.mqttUsername mqttConfig
     , mPassword = C.mqttPassword mqttConfig
     , mHost = C.mqttHost mqttConfig
