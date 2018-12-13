@@ -100,8 +100,13 @@ void * publish_worker(void* arg) {
   struct mqtt_client * client = (struct mqtt_client *) arg;
   char *topic;
   char *payload;
+  int st;
   while(1) {
-    get_message(&topic, &payload);
+    get_message(&topic, &payload, &st);
+    if (st == 0) {
+      usleep(100000U);
+      continue;
+    }
     mqtt_publish(client, topic, (void *)payload, strlen(payload) + 1, MQTT_PUBLISH_QOS_0);
   }
   return NULL;

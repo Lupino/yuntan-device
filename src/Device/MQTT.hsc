@@ -21,10 +21,10 @@ module Device.MQTT
   ) where
 import           Conduit                    (ConduitT, Void, awaitForever,
                                              runConduit, yield, (.|))
-import           Control.Concurrent         (forkIO, threadDelay)
+import           Control.Concurrent         (forkOS, forkIO, threadDelay)
 import           Control.Concurrent.STM     (TChan, atomically, cloneTChan,
                                              newTChanIO, readTChan, retry,
-                                             writeTChan)
+                                             writeTChan, tryPeekTChan)
 import           Control.Monad              (forever, void, when)
 import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Trans.Class  (lift)
@@ -67,14 +67,18 @@ data RpcMsg = RpcMsg
   , payload :: !ByteString
   }
 
-foreign export ccall get_message :: Ptr CString -> Ptr CString -> IO ()
+foreign export ccall get_message :: Ptr CString -> Ptr CString -> Ptr CInt -> IO ()
 
-get_message :: Ptr CString -> Ptr CString -> IO ()
-get_message ptr0 ptr1 = do
-  RpcMsg {..} <- atomically $ readTChan publishChan
-  t <- newCString topic
-  poke ptr0 t
-  useAsCString payload $ poke ptr1
+get_message :: Ptr CString -> Ptr CString -> Ptr CInt -> IO ()
+get_message ptr0 ptr1 ptr2 = do
+  r <- atomically $ tryPeekTChan publishChan
+  case r of
+    Nothing -> poke ptr2 0
+    Just RpcMsg{..} -> do
+      t <- newCString topic
+      poke ptr0 t
+      useAsCString payload $ poke ptr1
+      poke ptr2 1
 
 
 publishChan :: TChan RpcMsg
@@ -198,7 +202,7 @@ startMQTT env = do
   username <- newCString $ mUsername env
   password <- newCString $ mPassword env
 
-  void $ forkIO $ void $ c_mqtt_main host port clientId username password
+  void $ forkOS $ void $ c_mqtt_main host port clientId username password
 
   pubChan1 <- atomically $ cloneTChan subscribeChan
   pubChan2 <- atomically $ cloneTChan subscribeChan
