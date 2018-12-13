@@ -10,20 +10,23 @@ module Device.Handler
   , getDeviceListByNameHandler
   , removeDeviceHandler
   , getDeviceHandler
+  , rpcHandler
   ) where
 
-import           Control.Monad           (void)
+import           Control.Monad           (void, when)
+import           Control.Monad.IO.Class  (liftIO)
 import           Control.Monad.Reader    (lift)
-
 import           Data.Aeson              (decode)
+import           Data.ByteString.Lazy    (fromStrict)
 import           Data.Int                (Int64)
 import           Data.Maybe              (catMaybes)
-import qualified Data.Text               as T (null)
+import qualified Data.Text               as T (null, unpack)
 import           Data.UUID               (fromText)
 import           Device
+import           Device.MQTT             (request)
 import           Haxl.Core               (GenHaxl)
 import           Network.HTTP.Types      (status403, status500)
-import           Web.Scotty.Trans        (json, param)
+import           Web.Scotty.Trans        (addHeader, json, param, raw)
 import           Yuntan.Types.HasMySQL   (HasMySQL)
 import           Yuntan.Types.ListResult (From, ListResult (..), Size)
 import           Yuntan.Types.OrderBy    (OrderBy, desc)
@@ -143,3 +146,16 @@ resultDeviceList getList count = do
     , getTotal  = total
     , getResult = catMaybes devices
     }
+
+rpcHandler :: HasMySQL u => Device -> ActionH u ()
+rpcHandler Device{devUUID = uuid} = do
+  key <- lift getPrefix
+  payload <- param "payload"
+  tout <- min 300 <$> safeParam "timeout" 300
+  r <- liftIO $ request key (T.unpack uuid) payload tout
+  case r of
+    Nothing -> err status500 "request timeout"
+    Just v  -> do
+      isjson <- safeParam "format" ("raw" :: String)
+      when (isjson == "json") $ addHeader "Content-Type" "application/json; charset=utf-8"
+      raw $ fromStrict v

@@ -23,3 +23,9 @@ mysql:
 
   numThreads: 10
   # numThreads of fetch async for haxl
+
+mqtt:
+  host: gw.huabot.com
+  port: 11883
+  username:
+  password:

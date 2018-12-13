@@ -23,6 +23,8 @@ import           Haxl.Core                            (GenHaxl, StateStore,
 
 import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
+import           Device.MQTT                          (MqttEnv (..), newMqttEnv,
+                                                       startMQTT)
 
 import           Data.Semigroup                       ((<>))
 import           Options.Applicative
@@ -75,6 +77,18 @@ program Options { getConfigFile  = confFile
   let mysqlConfig  = C.mysqlConfig conf
       mysqlThreads = C.mysqlHaxlNumThreads mysqlConfig
 
+      mqttConfig   = C.mqttConfig conf
+
+
+  mqttEnv <- newMqttEnv prefix
+
+  startMQTT mqttEnv
+    { mUsername = C.mqttUsername mqttConfig
+    , mPassword = C.mqttPassword mqttConfig
+    , mHost = C.mqttHost mqttConfig
+    , mPort = show $ C.mqttPort mqttConfig
+    }
+
   pool <- C.genMySQLPool mysqlConfig
 
   let state = stateSet (initDeviceState mysqlThreads) stateEmpty
@@ -86,8 +100,7 @@ program Options { getConfigFile  = confFile
 
   _ <- runIO u state createTable
   scottyOptsT opts (runIO u state) application
-  where
-        runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
+  where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
@@ -127,3 +140,8 @@ application = do
     requireDevice getDeviceHandler
   get "/api/users/:username/devices/:uuidOrToken/" $
     requireDevice $ requireOwner getDeviceHandler
+
+  post "/api/devices/:uuidOrToken/rpc/" $
+    requireDevice rpcHandler
+  post "/api/users/:username/devices/:uuidOrToken/rpc/" $
+    requireDevice $ requireOwner rpcHandler

@@ -16,11 +16,13 @@ module Device.API
   , updateDeviceToken
   , updateDeviceType
   , removeDevice
+  , getPrefix
   ) where
 
 import           Data.Int                (Int64)
-import           Haxl.Core               (GenHaxl, dataFetch, uncachedRequest)
-import           Yuntan.Types.HasMySQL   (HasMySQL)
+import           Haxl.Core               (GenHaxl, dataFetch, env,
+                                          uncachedRequest, userEnv)
+import           Yuntan.Types.HasMySQL   (HasMySQL, tablePrefix)
 
 import           Device.DataSource
 import           Device.Types
@@ -78,3 +80,6 @@ updateDeviceToken devid t = uncachedRequest (UpdateDeviceToken devid t)
 
 removeDevice :: HasMySQL u => DeviceID -> GenHaxl u Int64
 removeDevice devid = uncachedRequest (RemoveDevice devid)
+
+getPrefix :: HasMySQL u => GenHaxl u String
+getPrefix = tablePrefix <$> env userEnv
