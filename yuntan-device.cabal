@@ -10,7 +10,14 @@ maintainer:          lmjubuntu@gmail.com
 copyright:           MIT
 category:            value
 build-type:          Simple
--- extra-source-files:
+extra-source-files: include/mqtt.h
+                  , include/mqtt_pal.h
+                  , include/hs_mqtt.h
+                  , include/posix_sockets.h
+                  , cbits/mqtt.c
+                  , cbits/mqtt_pal.c
+                  , cbits/hs_mqtt.c
+                  , config.example.yaml
 cabal-version:       >=1.10
 
 library
@@ -21,6 +28,8 @@ library
                      , Device.DataSource
                      , Device.DataSource.Device
                      , Device.DataSource.Table
+
+                     , Device.MQTT
 
                      , Device.Handler
                      , Device.Config
@@ -48,7 +57,20 @@ library
                      , yuntan-common-scotty
                      , yuntan-common-scotty-type
                      , yuntan-common-json
+                     , conduit
+                     , stm
+                     , transformers
+                     , cache
+                     , clock
+                     , network
+                     , MissingH
+                     , entropy
   default-language:    Haskell2010
+  build-tools: hsc2hs
+  include-dirs: include
+  c-sources: cbits/mqtt.c
+           , cbits/mqtt_pal.c
+           , cbits/hs_mqtt.c
 
 executable yuntan-device
   hs-source-dirs:      app
