@@ -62,7 +62,6 @@ library
                      , transformers
                      , cache
                      , clock
-                     , network
                      , MissingH
                      , entropy
   default-language:    Haskell2010
