@@ -72,11 +72,6 @@ void reconnect_client(struct mqtt_client* client, void **reconnect_state_vptr) {
   // device report attributes to this topic
   sprintf(topic, "/%s/+/attributes", reconnect_state->clientId);
   mqtt_subscribe(client, topic, 0);
-
-  // /:key/:uuid/telemetry
-  // device report telemetry data to this topic
-  sprintf(topic, "/%s/+/telemetry", reconnect_state->clientId);
-  mqtt_subscribe(client, topic, 0);
 }
 
 void publish_callback(void** unused, struct mqtt_response_publish *published) {

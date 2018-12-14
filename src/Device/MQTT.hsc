@@ -14,7 +14,6 @@
 
 module Device.MQTT
   ( startMQTT
-  , newMqttEnv
   , MqttEnv (..)
   , publish
   , request
@@ -135,26 +134,12 @@ handler f = awaitForever $ \RpcMsg{..} ->
 
 data MqttEnv = MqttEnv
   { saveAttributes :: String -> ByteString -> IO ()  -- saveAttributes uuid payload
-  , saveTelemetry  :: String -> ByteString -> IO () -- saveTelemetry uuid payload
   , mKey           :: String -- the service key
   , mUsername      :: String
   , mPassword      :: String
   , mHost          :: String
   , mPort          :: String
   }
-
-
-newMqttEnv :: String -> IO MqttEnv
-newMqttEnv k = do
-  return MqttEnv
-    { saveAttributes = \_ _ -> pure ()
-    , saveTelemetry  = \_ _ -> pure ()
-    , mKey = k
-    , mUsername = ""
-    , mPassword = ""
-    , mHost = "localhost"
-    , mPort = "1883"
-    }
 
 
 publish :: String -> ByteString -> IO ()
@@ -204,7 +189,6 @@ startMQTT env = do
 
   pubChan0 <- atomically $ dupTChan subscribeChan
   pubChan1 <- atomically $ cloneTChan pubChan0
-  pubChan2 <- atomically $ cloneTChan pubChan0
   void
     $ forkIO
     $ runConduit
@@ -217,12 +201,6 @@ startMQTT env = do
     $ sourceTChan pubChan1
     .| filterTopic (isTopic "attributes")
     .| handler (saveAttributes env)
-  void
-    $ forkIO
-    $ runConduit
-    $ sourceTChan pubChan2
-    .| filterTopic (isTopic "telemetry")
-    .| handler (saveTelemetry env)
 
   forever $ do
     Cache.purgeExpired responseCache

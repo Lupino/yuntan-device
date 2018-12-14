@@ -25,8 +25,7 @@ import           Haxl.Core                            (GenHaxl, StateStore,
 
 import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
-import           Device.MQTT                          (MqttEnv (..), newMqttEnv,
-                                                       startMQTT)
+import           Device.MQTT                          (MqttEnv (..), startMQTT)
 
 import           Data.Semigroup                       ((<>))
 import           Options.Applicative
@@ -93,13 +92,12 @@ program Options { getConfigFile  = confFile
 
   _ <- runIO u state createTable
 
-  mqttEnv <- newMqttEnv prefix
-
-  void $ forkIO $ startMQTT mqttEnv
+  void $ forkIO $ startMQTT MqttEnv
     { mUsername = C.mqttUsername mqttConfig
     , mPassword = C.mqttPassword mqttConfig
     , mHost = C.mqttHost mqttConfig
     , mPort = show $ C.mqttPort mqttConfig
+    , mKey = prefix
     , saveAttributes = \uuid bs -> runIO u state (updateDeviceMetaByUUID uuid bs)
     }
 
