@@ -23,9 +23,10 @@ import           Conduit                    (ConduitT, Void, awaitForever,
                                              runConduit, yield, (.|))
 import           Control.Concurrent         (forkIO, forkOS, threadDelay)
 import           Control.Concurrent.STM     (TChan, TQueue, atomically,
-                                             cloneTChan, newTChanIO,
-                                             newTQueueIO, readTChan, readTQueue,
-                                             retry, writeTChan, writeTQueue)
+                                             cloneTChan, dupTChan,
+                                             newBroadcastTChanIO, newTQueueIO,
+                                             readTChan, readTQueue, retry,
+                                             writeTChan, writeTQueue)
 import           Control.Monad              (forever, void, when)
 import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Trans.Class  (lift)
@@ -82,7 +83,7 @@ publishQueue :: TQueue RpcMsg
 publishQueue = unsafePerformIO newTQueueIO
 
 subscribeChan :: TChan RpcMsg
-subscribeChan = unsafePerformIO newTChanIO
+subscribeChan = unsafePerformIO newBroadcastTChanIO
 
 responseCache :: Cache String (Maybe ByteString)
 responseCache = unsafePerformIO $ newCache (Just $ TimeSpec 300 0)
@@ -201,12 +202,13 @@ startMQTT env = do
 
   void $ forkOS $ void $ c_mqtt_main host port clientId username password
 
-  pubChan1 <- atomically $ cloneTChan subscribeChan
-  pubChan2 <- atomically $ cloneTChan subscribeChan
+  pubChan0 <- atomically $ dupTChan subscribeChan
+  pubChan1 <- atomically $ cloneTChan pubChan0
+  pubChan2 <- atomically $ cloneTChan pubChan0
   void
     $ forkIO
     $ runConduit
-    $ sourceTChan subscribeChan
+    $ sourceTChan pubChan0
     .| filterTopic (isTopic "response")
     .| handleResponseTopic
   void
