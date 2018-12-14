@@ -131,7 +131,7 @@ handleResponseTopic = awaitForever $ \RpcMsg{..} ->
 
 handler :: (String -> ByteString -> IO ()) -> ConduitT RpcMsg Void IO ()
 handler f = awaitForever $ \RpcMsg{..} ->
-  lift $ f topic payload
+  lift $ f (getUUID topic) payload
 
 data MqttEnv = MqttEnv
   { saveAttributes :: String -> ByteString -> IO ()  -- saveAttributes uuid payload

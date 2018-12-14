@@ -17,8 +17,10 @@ module Device.API
   , updateDeviceType
   , removeDevice
   , getPrefix
+  , updateDeviceMetaByUUID
   ) where
 
+import           Data.ByteString         (ByteString)
 import           Data.Int                (Int64)
 import           Haxl.Core               (GenHaxl, dataFetch, env,
                                           uncachedRequest, userEnv)
@@ -27,8 +29,12 @@ import           Yuntan.Types.HasMySQL   (HasMySQL, tablePrefix)
 import           Device.DataSource
 import           Device.Types
 
+import           Control.Monad           (void, when)
+import           Data.Aeson              (decodeStrict)
+import           Data.Text               (pack)
 import           Yuntan.Types.ListResult (From, Size)
 import           Yuntan.Types.OrderBy    (OrderBy)
+import           Yuntan.Utils.JSON       (unionValue)
 
 createTable :: HasMySQL u => GenHaxl u Int64
 createTable = uncachedRequest CreateTable
@@ -83,3 +89,17 @@ removeDevice devid = uncachedRequest (RemoveDevice devid)
 
 getPrefix :: HasMySQL u => GenHaxl u String
 getPrefix = tablePrefix <$> env userEnv
+
+updateDeviceMetaByUUID :: HasMySQL u => String -> ByteString -> GenHaxl u ()
+updateDeviceMetaByUUID uuid meta = do
+  devid <- getDevIdByUuid $ pack uuid
+  case devid of
+    Nothing -> pure ()
+    Just did -> do
+      dev <- getDevice did
+      case dev of
+        Nothing -> pure ()
+        Just Device{devMeta = ometa} -> do
+          case decodeStrict meta of
+            Nothing -> pure ()
+            Just ev -> void (updateDeviceMeta did $ unionValue ev ometa)

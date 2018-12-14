@@ -82,15 +82,6 @@ program Options { getConfigFile  = confFile
       mqttConfig   = C.mqttConfig conf
 
 
-  mqttEnv <- newMqttEnv prefix
-
-  void $ forkIO $ startMQTT mqttEnv
-    { mUsername = C.mqttUsername mqttConfig
-    , mPassword = C.mqttPassword mqttConfig
-    , mHost = C.mqttHost mqttConfig
-    , mPort = show $ C.mqttPort mqttConfig
-    }
-
   pool <- C.genMySQLPool mysqlConfig
 
   let state = stateSet (initDeviceState mysqlThreads) stateEmpty
@@ -101,6 +92,17 @@ program Options { getConfigFile  = confFile
                             $ setHost (Host host) (settings def) }
 
   _ <- runIO u state createTable
+
+  mqttEnv <- newMqttEnv prefix
+
+  void $ forkIO $ startMQTT mqttEnv
+    { mUsername = C.mqttUsername mqttConfig
+    , mPassword = C.mqttPassword mqttConfig
+    , mHost = C.mqttHost mqttConfig
+    , mPort = show $ C.mqttPort mqttConfig
+    , saveAttributes = \uuid bs -> runIO u state (updateDeviceMetaByUUID uuid bs)
+    }
+
   scottyOptsT opts (runIO u state) application
   where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
         runIO env s m = do
