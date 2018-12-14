@@ -82,10 +82,14 @@ void reconnect_client(struct mqtt_client* client, void **reconnect_state_vptr) {
 void publish_callback(void** unused, struct mqtt_response_publish *published) {
   /* note that published->topic_name is NOT null-terminated (here we'll change it to a c-string) */
   char* topic_name = (char*) malloc(published->topic_name_size + 1);
+  char* message = (char*) malloc(published->application_message_size + 1);
   memcpy(topic_name, published->topic_name, published->topic_name_size);
+  memcpy(message, published->application_message, published->application_message_size);
   topic_name[published->topic_name_size] = '\0';
-  on_message(topic_name, (HsPtr)published->application_message);
+  message[published->application_message_size] = '\0';
+  on_message(topic_name, message);
   free(topic_name);
+  free(message);
 }
 
 int client_refresher(struct mqtt_client * client) {
