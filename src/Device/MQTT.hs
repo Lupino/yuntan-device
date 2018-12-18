@@ -76,7 +76,7 @@ filterTopic t = awaitForever $ \msg ->
 handleResponse :: ConduitT (Message PUBLISH) Void IO ()
 handleResponse = awaitForever $ \msg ->
   case (getLevels $ topic $ body msg) of
-    (_:uuid:"response":reqid:_) -> lift $ do
+    (_:_:uuid:"response":reqid:_) -> lift $ do
       let k = responseKey uuid reqid
       now <- getTime Monotonic
       let t = case defaultExpiration responseCache of
@@ -92,8 +92,8 @@ handleResponse = awaitForever $ \msg ->
 handler :: (String -> ByteString -> IO ()) -> ConduitT (Message PUBLISH) Void IO ()
 handler f = awaitForever $ \msg ->
   case getLevels (topic $ body msg) of
-    (_:uuid:_) -> lift $ f (unpack uuid) (payload $ body msg)
-    t          -> lift $ putStrLn $ show t
+    (_:_:uuid:_) -> lift $ f (unpack uuid) (payload $ body msg)
+    t            -> lift $ putStrLn $ show t
 
 data MqttEnv = MqttEnv
   { saveAttributes :: String -> ByteString -> IO ()  -- saveAttributes uuid payload
