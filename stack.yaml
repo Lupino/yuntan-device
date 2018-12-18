@@ -50,6 +50,8 @@ extra-deps:
   - yuntan-common-result
   - yuntan-common-json
   - yuntan-common-order
+- git: https://github.com/Lupino/mqtt-hs.git
+  commit: e8b164e9bac47ded1940edbb5dd48a627db1ccc2
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

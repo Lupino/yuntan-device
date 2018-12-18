@@ -11,12 +11,14 @@ module Device.Config
 import           Data.Aeson                (FromJSON, parseJSON, withObject,
                                             (.:))
 
+import           Data.Text                 (Text)
+import           Network                   (HostName)
 import           Yuntan.Config.MySQLConfig (MySQLConfig (..), genMySQLPool)
 
 data MQConfig = MQConfig
-  { mqttUsername :: String
-  , mqttPassword :: String
-  , mqttHost     :: String
+  { mqttUsername :: Text
+  , mqttPassword :: Text
+  , mqttHost     :: HostName
   , mqttPort     :: Int
   } deriving (Show)
 

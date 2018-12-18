@@ -26,6 +26,7 @@ import           Device
 import           Device.MQTT             (request)
 import           Haxl.Core               (GenHaxl)
 import           Network.HTTP.Types      (status403, status500)
+import           Network.MQTT            (Config)
 import           Web.Scotty.Trans        (addHeader, json, param, raw)
 import           Yuntan.Types.HasMySQL   (HasMySQL)
 import           Yuntan.Types.ListResult (From, ListResult (..), Size)
@@ -147,12 +148,12 @@ resultDeviceList getList count = do
     , getResult = catMaybes devices
     }
 
-rpcHandler :: HasMySQL u => Device -> ActionH u ()
-rpcHandler Device{devUUID = uuid} = do
+rpcHandler :: HasMySQL u => Config -> Device -> ActionH u ()
+rpcHandler mqtt Device{devUUID = uuid} = do
   key <- lift getPrefix
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
-  r <- liftIO $ request key (T.unpack uuid) payload tout
+  r <- liftIO $ request mqtt key (T.unpack uuid) payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do

@@ -4,8 +4,6 @@ module Main
   ( main
   ) where
 
-import           Control.Concurrent                   (forkIO)
-import           Control.Monad                        (void)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
@@ -28,6 +26,7 @@ import qualified Device.Config                        as C
 import           Device.MQTT                          (MqttEnv (..), startMQTT)
 
 import           Data.Semigroup                       ((<>))
+import qualified Network.MQTT                         as MQTT (Config)
 import           Options.Applicative
 
 data Options = Options
@@ -92,23 +91,23 @@ program Options { getConfigFile  = confFile
 
   _ <- runIO u state createTable
 
-  void $ forkIO $ startMQTT MqttEnv
+  mqtt <- startMQTT MqttEnv
     { mUsername = C.mqttUsername mqttConfig
     , mPassword = C.mqttPassword mqttConfig
     , mHost = C.mqttHost mqttConfig
-    , mPort = show $ C.mqttPort mqttConfig
+    , mPort = fromIntegral $ C.mqttPort mqttConfig
     , mKey = prefix
     , saveAttributes = \uuid bs -> runIO u state (updateDeviceMetaByUUID uuid bs)
     }
 
-  scottyOptsT opts (runIO u state) application
+  scottyOptsT opts (runIO u state) (application mqtt)
   where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: HasMySQL u => ScottyH u ()
-application = do
+application :: HasMySQL u => MQTT.Config -> ScottyH u ()
+application mqtt = do
   middleware logStdout
 
   post "/api/devices/" createDeviceHandler
@@ -144,6 +143,6 @@ application = do
     requireDevice $ requireOwner getDeviceHandler
 
   post "/api/devices/:uuidOrToken/rpc/" $
-    requireDevice rpcHandler
+    requireDevice $ rpcHandler mqtt
   post "/api/users/:username/devices/:uuidOrToken/rpc/" $
-    requireDevice $ requireOwner rpcHandler
+    requireDevice $ requireOwner $ rpcHandler mqtt
