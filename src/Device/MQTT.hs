@@ -169,7 +169,7 @@ startMQTT MqttEnv{..} = do
 
   -- this will throw IOExceptions
   void $ forkIO $ forever $ do
-    void $ subscribe conf [(responseTopic mKey, Handshake), (attrTopic mKey, Handshake)]
+    void $ forkIO $ void $ subscribe conf [(responseTopic mKey, Handshake), (attrTopic mKey, Handshake)]
     terminated <- try $ run conf :: IO (Either SomeException Terminated)
     print terminated
     -- retry 1 seconds
