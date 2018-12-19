@@ -13,6 +13,7 @@ import           Conduit                    (ConduitT, Void, awaitForever,
 import           Control.Concurrent         (forkIO, threadDelay)
 import           Control.Concurrent.STM     (TChan, atomically, cloneTChan,
                                              newTChanIO, readTChan, retry)
+import           Control.Exception          (SomeException, try)
 import           Control.Monad              (forever, void, when)
 import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Trans.Class  (lift)
@@ -26,15 +27,14 @@ import qualified Data.Cache                 as Cache (deleteSTM, insert',
 import           Data.Int                   (Int64)
 import           Data.String                (fromString)
 import           Data.Text                  (Text, append, pack, unpack)
+import           Network                    (HostName, PortNumber)
+import           Network.MQTT
 import           System.Clock               (Clock (Monotonic), TimeSpec (..),
                                              getTime)
 import           System.Entropy             (getEntropy)
 import           System.Exit                (exitFailure)
 import           System.IO                  (hPutStrLn, stderr)
 import           System.IO.Unsafe           (unsafePerformIO)
-
-import           Network                    (HostName, PortNumber)
-import           Network.MQTT
 
 responseCache :: Cache Text (Maybe ByteString)
 responseCache = unsafePerformIO $ newCache (Just $ TimeSpec 300 0)
@@ -167,18 +167,13 @@ startMQTT MqttEnv{..} = do
     .| filterTopic (attrTopic mKey)
     .| handler saveAttributes
 
-  void $ forkIO $ do
-    qosGranted <- subscribe conf [(responseTopic mKey, Handshake), (attrTopic mKey, Handshake)]
-    case qosGranted of
-      [Handshake, Handshake] -> return ()
-      _ -> do
-        hPutStrLn stderr $ "Wanted QoS Handshake, got " ++ show qosGranted
-        exitFailure
-
   -- this will throw IOExceptions
   void $ forkIO $ forever $ do
-    terminated <- run conf
+    void $ subscribe conf [(responseTopic mKey, Handshake), (attrTopic mKey, Handshake)]
+    terminated <- try $ run conf :: IO (Either SomeException Terminated)
     print terminated
+    -- retry 1 seconds
+    threadDelay $ 1000000 * 1
 
   void $ forkIO $ forever $ do
     Cache.purgeExpired responseCache
