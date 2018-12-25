@@ -23,10 +23,9 @@ import           Haxl.Core                            (GenHaxl, StateStore,
 
 import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
-import           Device.MQTT                          (MqttEnv (..), startMQTT)
+import           Device.MQTT                          (MqttEnv, startMQTT)
 
 import           Data.Semigroup                       ((<>))
-import qualified Network.MQTT                         as MQTT (Config)
 import           Options.Applicative
 
 data Options = Options
@@ -91,14 +90,8 @@ program Options { getConfigFile  = confFile
 
   _ <- runIO u state createTable
 
-  mqtt <- startMQTT MqttEnv
-    { mUsername = C.mqttUsername mqttConfig
-    , mPassword = C.mqttPassword mqttConfig
-    , mHost = C.mqttHost mqttConfig
-    , mPort = fromIntegral $ C.mqttPort mqttConfig
-    , mKey = prefix
-    , saveAttributes = \uuid bs -> runIO u state (updateDeviceMetaByUUID uuid bs)
-    }
+  mqtt <- startMQTT prefix mqttConfig $ \uuid bs ->
+    runIO u state (updateDeviceMetaByUUID uuid bs)
 
   scottyOptsT opts (runIO u state) (application mqtt)
   where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
@@ -106,7 +99,7 @@ program Options { getConfigFile  = confFile
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: HasMySQL u => MQTT.Config -> ScottyH u ()
+application :: HasMySQL u => MqttEnv -> ScottyH u ()
 application mqtt = do
   middleware logStdout
 

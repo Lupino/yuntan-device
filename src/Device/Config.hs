@@ -3,7 +3,7 @@
 
 module Device.Config
   ( MySQLConfig (..)
-  , MQConfig (..)
+  , MqttConfig (..)
   , Config (..)
   , genMySQLPool
   ) where
@@ -15,24 +15,24 @@ import           Data.Text                 (Text)
 import           Network                   (HostName)
 import           Yuntan.Config.MySQLConfig (MySQLConfig (..), genMySQLPool)
 
-data MQConfig = MQConfig
+data MqttConfig = MqttConfig
   { mqttUsername :: Text
   , mqttPassword :: Text
   , mqttHost     :: HostName
   , mqttPort     :: Int
   } deriving (Show)
 
-instance FromJSON MQConfig where
-  parseJSON = withObject "MQConfig" $ \o -> do
+instance FromJSON MqttConfig where
+  parseJSON = withObject "MqttConfig" $ \o -> do
     mqttUsername <- o .: "username"
     mqttPassword <- o .: "password"
     mqttHost <- o .: "host"
     mqttPort <- o .: "port"
-    return MQConfig{..}
+    return MqttConfig{..}
 
 data Config = Config
   { mysqlConfig :: MySQLConfig
-  , mqttConfig  :: MQConfig
+  , mqttConfig  :: MqttConfig
   } deriving (Show)
 
 instance FromJSON Config where

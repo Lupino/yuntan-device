@@ -23,7 +23,7 @@ import           Data.Maybe              (catMaybes)
 import qualified Data.Text               as T (null, unpack)
 import           Data.UUID               (fromText)
 import           Device
-import           Device.MQTT             (request)
+import           Device.MQTT             (MqttEnv, request)
 import           Haxl.Core               (GenHaxl)
 import           Network.HTTP.Types      (status403, status500)
 import           Network.MQTT            (Config)
@@ -148,7 +148,7 @@ resultDeviceList getList count = do
     , getResult = catMaybes devices
     }
 
-rpcHandler :: HasMySQL u => Config -> Device -> ActionH u ()
+rpcHandler :: HasMySQL u => MqttEnv -> Device -> ActionH u ()
 rpcHandler mqtt Device{devUUID = uuid} = do
   key <- lift getPrefix
   payload <- param "payload"

@@ -27,17 +27,19 @@ import qualified Data.Cache                 as Cache (deleteSTM, insert',
 import           Data.Int                   (Int64)
 import           Data.String                (fromString)
 import           Data.Text                  (Text, append, pack, unpack)
-import           Network                    (HostName, PortNumber)
+import           Device.Config              (MqttConfig (..))
 import           Network.MQTT
 import           System.Clock               (Clock (Monotonic), TimeSpec (..),
                                              getTime)
 import           System.Entropy             (getEntropy)
-import           System.Exit                (exitFailure)
-import           System.IO                  (hPutStrLn, stderr)
-import           System.IO.Unsafe           (unsafePerformIO)
 
-responseCache :: Cache Text (Maybe ByteString)
-responseCache = unsafePerformIO $ newCache (Just $ TimeSpec 300 0)
+type ResponseCache = Cache Text (Maybe ByteString)
+
+data MqttEnv = MqttEnv
+  { mKey    :: String -- the service key
+  , mConfig :: Config
+  , mCache  :: ResponseCache
+  }
 
 -- /:key/:uuid/request/:requestid
 requestTopic :: String -> String -> String -> Topic
@@ -73,20 +75,20 @@ filterTopic t = awaitForever $ \msg ->
       yield msg
 
 -- consumers for messages on the topics we are interested in
-handleResponse :: ConduitT (Message PUBLISH) Void IO ()
-handleResponse = awaitForever $ \msg ->
+handleResponse :: ResponseCache -> ConduitT (Message PUBLISH) Void IO ()
+handleResponse cache = awaitForever $ \msg ->
   case (getLevels $ topic $ body msg) of
     (_:_:uuid:"response":reqid:_) -> lift $ do
       let k = responseKey uuid reqid
       now <- getTime Monotonic
-      let t = case defaultExpiration responseCache of
+      let t = case defaultExpiration cache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
       atomically $ do
-        r <- Cache.lookupSTM True k responseCache now
+        r <- Cache.lookupSTM True k cache now
         case r of
           Nothing -> pure ()
-          Just _  -> Cache.insertSTM k (Just (payload$ body msg)) responseCache t
+          Just _  -> Cache.insertSTM k (Just (payload$ body msg)) cache t
     _ -> pure ()
 
 handler :: (String -> ByteString -> IO ()) -> ConduitT (Message PUBLISH) Void IO ()
@@ -94,15 +96,6 @@ handler f = awaitForever $ \msg ->
   case getLevels (topic $ body msg) of
     (_:_:uuid:_) -> lift $ f (unpack uuid) (payload $ body msg)
     t            -> lift $ putStrLn $ show t
-
-data MqttEnv = MqttEnv
-  { saveAttributes :: String -> ByteString -> IO ()  -- saveAttributes uuid payload
-  , mKey           :: String -- the service key
-  , mUsername      :: Text
-  , mPassword      :: Text
-  , mHost          :: HostName
-  , mPort          :: PortNumber
-  }
 
 
 genHex :: Int -> IO String
@@ -116,39 +109,42 @@ genHex n = fix . prettyPrint <$> getEntropy n
               | otherwise = 'a' : v
 
 -- request key uuid data timeout
-request :: Config -> String -> String -> ByteString -> Int64 -> IO (Maybe ByteString)
-request mqtt key uuid p t = do
+request :: MqttEnv -> String -> String -> ByteString -> Int64 -> IO (Maybe ByteString)
+request MqttEnv {..} key uuid p t = do
   reqid <- genHex 4
 
   let k = responseKey (pack uuid) (pack reqid)
 
-  Cache.insert' responseCache (Just $ TimeSpec t 0) k Nothing
+  Cache.insert' mCache (Just $ TimeSpec t 0) k Nothing
 
-  publish mqtt Handshake False (requestTopic key uuid reqid) p
+  publish mConfig Handshake False (requestTopic key uuid reqid) p
 
   now <- getTime Monotonic
 
   atomically $ do
-    r <- Cache.lookupSTM True k responseCache now
+    r <- Cache.lookupSTM True k mCache now
     case r of
       Nothing -> pure Nothing
       Just Nothing -> retry
       Just v -> do
-        Cache.deleteSTM k responseCache
+        Cache.deleteSTM k mCache
         pure v
 
-startMQTT :: MqttEnv -> IO Config
-startMQTT MqttEnv{..} = do
+startMQTT :: String -> MqttConfig -> (String -> ByteString -> IO ())-> IO MqttEnv
+startMQTT key MqttConfig{..} saveAttributes = do
+
+  cache <- newCache (Just $ TimeSpec 300 0)
+
   cmds <- mkCommands
   -- create one channel per conduit, each one receiving all the messages
   pubChan0 <- newTChanIO
   pubChan1 <- atomically $ cloneTChan pubChan0
   let conf = (defaultConfig cmds pubChan0)
-              { cUsername  = Just mUsername
-              , cPassword  = Just mPassword
-              , cClientID  = pack mKey
-              , cHost      = mHost
-              , cPort      = mPort
+              { cUsername  = Just mqttUsername
+              , cPassword  = Just mqttPassword
+              , cClientID  = pack key
+              , cHost      = mqttHost
+              , cPort      = fromIntegral mqttPort
               , cKeepAlive = Just 4000
               , cVer       = "3.1.1"
               }
@@ -157,26 +153,30 @@ startMQTT MqttEnv{..} = do
     $ forkIO
     $ runConduit
     $ sourceTChan pubChan0
-    .| filterTopic (responseTopic mKey)
-    .| handleResponse
+    .| filterTopic (responseTopic key)
+    .| handleResponse cache
 
   void
     $ forkIO
     $ runConduit
     $ sourceTChan pubChan1
-    .| filterTopic (attrTopic mKey)
+    .| filterTopic (attrTopic key)
     .| handler saveAttributes
 
   -- this will throw IOExceptions
   void $ forkIO $ forever $ do
-    void $ forkIO $ void $ subscribe conf [(responseTopic mKey, Handshake), (attrTopic mKey, Handshake)]
+    void $ forkIO $ void $ subscribe conf [(responseTopic key, Handshake), (attrTopic key, Handshake)]
     terminated <- try $ run conf :: IO (Either SomeException Terminated)
     print terminated
     -- retry 1 seconds
     threadDelay $ 1000000 * 1
 
   void $ forkIO $ forever $ do
-    Cache.purgeExpired responseCache
+    Cache.purgeExpired cache
     threadDelay $ 1000000 * 1
 
-  pure conf
+  pure MqttEnv
+    { mKey = key
+    , mConfig = conf
+    , mCache = cache
+    }
