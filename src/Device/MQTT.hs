@@ -108,16 +108,16 @@ genHex n = fix . prettyPrint <$> getEntropy n
         fix v | length v `mod` 2 == 0 = v
               | otherwise = 'a' : v
 
--- request key uuid data timeout
-request :: MqttEnv -> String -> String -> ByteString -> Int64 -> IO (Maybe ByteString)
-request MqttEnv {..} key uuid p t = do
+-- request env uuid data timeout
+request :: MqttEnv -> String -> ByteString -> Int64 -> IO (Maybe ByteString)
+request MqttEnv {..} uuid p t = do
   reqid <- genHex 4
 
   let k = responseKey (pack uuid) (pack reqid)
 
   Cache.insert' mCache (Just $ TimeSpec t 0) k Nothing
 
-  publish mConfig Handshake False (requestTopic key uuid reqid) p
+  publish mConfig Handshake False (requestTopic mKey uuid reqid) p
 
   now <- getTime Monotonic
 

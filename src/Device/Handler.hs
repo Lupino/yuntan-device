@@ -150,10 +150,9 @@ resultDeviceList getList count = do
 
 rpcHandler :: HasMySQL u => MqttEnv -> Device -> ActionH u ()
 rpcHandler mqtt Device{devUUID = uuid} = do
-  key <- lift getPrefix
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
-  r <- liftIO $ request mqtt key (T.unpack uuid) payload tout
+  r <- liftIO $ request mqtt (T.unpack uuid) payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do

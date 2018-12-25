@@ -16,7 +16,6 @@ module Device.API
   , updateDeviceToken
   , updateDeviceType
   , removeDevice
-  , getPrefix
   , updateDeviceMetaByUUID
   ) where
 
@@ -86,9 +85,6 @@ updateDeviceToken devid t = uncachedRequest (UpdateDeviceToken devid t)
 
 removeDevice :: HasMySQL u => DeviceID -> GenHaxl u Int64
 removeDevice devid = uncachedRequest (RemoveDevice devid)
-
-getPrefix :: HasMySQL u => GenHaxl u String
-getPrefix = tablePrefix <$> env userEnv
 
 updateDeviceMetaByUUID :: HasMySQL u => String -> ByteString -> GenHaxl u ()
 updateDeviceMetaByUUID uuid meta = do
