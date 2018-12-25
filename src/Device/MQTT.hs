@@ -88,7 +88,7 @@ handleResponse cache = awaitForever $ \msg ->
         r <- Cache.lookupSTM True k cache now
         case r of
           Nothing -> pure ()
-          Just _  -> Cache.insertSTM k (Just (payload$ body msg)) cache t
+          Just _  -> Cache.insertSTM k (Just (payload $ body msg)) cache t
     _ -> pure ()
 
 handler :: (String -> ByteString -> IO ()) -> ConduitT (Message PUBLISH) Void IO ()
