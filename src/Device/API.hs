@@ -142,7 +142,7 @@ updateDeviceMetaByUUID uuid meta = do
       dev <- getDevice did
       case dev of
         Nothing -> pure ()
-        Just Device{devMeta = ometa} -> do
+        Just Device{devMeta = ometa} ->
           case decodeStrict meta of
             Nothing -> pure ()
             Just ev -> void (updateDeviceMeta did $ unionValue ev ometa)

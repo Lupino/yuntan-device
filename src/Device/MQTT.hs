@@ -77,7 +77,7 @@ filterTopic t = awaitForever $ \msg ->
 -- consumers for messages on the topics we are interested in
 handleResponse :: ResponseCache -> ConduitT (Message PUBLISH) Void IO ()
 handleResponse cache = awaitForever $ \msg ->
-  case (getLevels $ topic $ body msg) of
+  case getLevels $ topic $ body msg of
     (_:_:uuid:"response":reqid:_) -> lift $ do
       let k = responseKey uuid reqid
       now <- getTime Monotonic
@@ -95,7 +95,7 @@ handler :: (String -> ByteString -> IO ()) -> ConduitT (Message PUBLISH) Void IO
 handler f = awaitForever $ \msg ->
   case getLevels (topic $ body msg) of
     (_:_:uuid:_) -> lift $ f (unpack uuid) (payload $ body msg)
-    t            -> lift $ putStrLn $ show t
+    t            -> lift $ print t
 
 
 genHex :: Int -> IO String
@@ -169,11 +169,11 @@ startMQTT key MqttConfig{..} saveAttributes = do
     terminated <- try $ run conf :: IO (Either SomeException Terminated)
     print terminated
     -- retry 1 seconds
-    threadDelay $ 1000000 * 1
+    threadDelay 1000000
 
   void $ forkIO $ forever $ do
     Cache.purgeExpired cache
-    threadDelay $ 1000000 * 1
+    threadDelay 1000000
 
   pure MqttEnv
     { mKey = key
