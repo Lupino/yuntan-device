@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Device.Handler
   ( requireDevice
@@ -23,12 +24,12 @@ import           Data.Maybe              (catMaybes)
 import qualified Data.Text               as T (null, unpack)
 import           Data.UUID               (fromText)
 import           Device
+import           Device.Config           (Cache)
 import           Device.MQTT             (MqttEnv, request)
 import           Haxl.Core               (GenHaxl)
 import           Network.HTTP.Types      (status403, status500)
-import           Network.MQTT            (Config)
 import           Web.Scotty.Trans        (addHeader, json, param, raw)
-import           Yuntan.Types.HasMySQL   (HasMySQL)
+import           Yuntan.Types.HasMySQL   (HasMySQL, HasOtherEnv)
 import           Yuntan.Types.ListResult (From, ListResult (..), Size)
 import           Yuntan.Types.OrderBy    (OrderBy, desc)
 import           Yuntan.Types.Scotty     (ActionH)
@@ -37,7 +38,7 @@ import           Yuntan.Utils.Scotty     (err, errBadRequest, errNotFound, ok,
                                           okListResult, safeParam)
 
 -- :uuidOrToken
-apiDevice :: HasMySQL u => ActionH u (Maybe Device)
+apiDevice :: (HasMySQL u, HasOtherEnv Cache u) => ActionH u (Maybe Device)
 apiDevice = do
   uuidOrToken <- param "uuidOrToken"
   let f = case fromText uuidOrToken of
@@ -50,7 +51,7 @@ apiDevice = do
       Nothing  -> pure Nothing
       Just did -> getDevice did
 
-requireDevice :: HasMySQL u => (Device -> ActionH u ()) -> ActionH u ()
+requireDevice :: (HasMySQL u, HasOtherEnv Cache u) => (Device -> ActionH u ()) -> ActionH u ()
 requireDevice next = do
   device <- apiDevice
   case device of
@@ -65,7 +66,7 @@ requireOwner next device = do
 
 -- POST /api/devices/
 -- POST /api/users/:username/devices/
-createDeviceHandler :: HasMySQL u => ActionH u ()
+createDeviceHandler :: (HasMySQL u, HasOtherEnv Cache u) => ActionH u ()
 createDeviceHandler = do
   username <- param "username"
   token <- param "token"
@@ -75,7 +76,7 @@ createDeviceHandler = do
 
 -- POST /api/devices/:uuidOrToken/token/
 -- POST /api/users/:username/devices/:uuidOrToken/token/
-updateDeviceTokenHandler :: HasMySQL u => Device -> ActionH u ()
+updateDeviceTokenHandler :: (HasMySQL u, HasOtherEnv Cache u) => Device -> ActionH u ()
 updateDeviceTokenHandler Device{devID = did} = do
   token <- param "token"
   ret <- lift $ updateDeviceToken did token
@@ -83,7 +84,7 @@ updateDeviceTokenHandler Device{devID = did} = do
 
 -- POST /api/devices/:uuidOrToken/type/
 -- POST /api/users/:username/devices/:uuidOrToken/type/
-updateDeviceTypeHandler :: HasMySQL u => Device -> ActionH u ()
+updateDeviceTypeHandler :: (HasMySQL u, HasOtherEnv Cache u) => Device -> ActionH u ()
 updateDeviceTypeHandler Device{devID = did} = do
   tp <- param "type"
   ret <- lift $ updateDeviceType did tp
@@ -91,7 +92,7 @@ updateDeviceTypeHandler Device{devID = did} = do
 
 -- POST /api/devices/:uuidOrToken/meta/
 -- POST /api/users/:username/devices/:uuidOrToken/meta/
-updateDeviceMetaHandler :: HasMySQL u => Device -> ActionH u ()
+updateDeviceMetaHandler :: (HasMySQL u, HasOtherEnv Cache u) => Device -> ActionH u ()
 updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- param "meta"
   case decode meta of
@@ -99,14 +100,14 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
     Nothing -> errBadRequest "meta filed is required."
 
 -- GET /api/devices/
-getDeviceListHandler :: HasMySQL u => ActionH u ()
+getDeviceListHandler :: (HasMySQL u, HasOtherEnv Cache u) => ActionH u ()
 getDeviceListHandler = do
   tp <- safeParam "type" ""
   if T.null tp then resultDeviceList getDevIdList countDevice
                else resultDeviceList (getDevIdListByType tp) (countDeviceByType tp)
 
 -- GET /api/users/:username/devices/
-getDeviceListByNameHandler :: HasMySQL u => ActionH u ()
+getDeviceListByNameHandler :: (HasMySQL u, HasOtherEnv Cache u) => ActionH u ()
 getDeviceListByNameHandler = do
   un <- param "username"
   tp <- safeParam "type" ""
@@ -117,14 +118,14 @@ getDeviceListByNameHandler = do
 
 -- DELETE /api/devices/:uuidOrToken/
 -- DELETE /api/users/:username/devices/:uuidOrToken/
-removeDeviceHandler :: HasMySQL u => Device -> ActionH u ()
+removeDeviceHandler :: (HasMySQL u, HasOtherEnv Cache u) => Device -> ActionH u ()
 removeDeviceHandler Device{devID = did} = do
   void $ lift $ removeDevice did
   resultOK
 
 -- GET /api/devices/:uuidOrToken/
 -- GET /api/users/:username/devices/:uuidOrToken/
-getDeviceHandler :: HasMySQL u => Device -> ActionH u ()
+getDeviceHandler :: Device -> ActionH u ()
 getDeviceHandler = ok "device"
 
 resultOK :: ActionH u ()
@@ -134,7 +135,10 @@ resultOKOrErr :: Int64 -> String -> ActionH u ()
 resultOKOrErr o m = if o > 0 then resultOK
                              else err status500 m
 
-resultDeviceList :: HasMySQL u => (From -> Size -> OrderBy -> GenHaxl u [DeviceID]) -> GenHaxl u Int64 -> ActionH u ()
+resultDeviceList
+  :: (HasMySQL u, HasOtherEnv Cache u)
+  => (From -> Size -> OrderBy -> GenHaxl u [DeviceID])
+  -> GenHaxl u Int64 -> ActionH u ()
 resultDeviceList getList count = do
   from <- safeParam "from" 0
   size <- safeParam "size" 10

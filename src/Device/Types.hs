@@ -18,8 +18,10 @@ import           Database.MySQL.Simple.QueryResults (QueryResults, convertError,
                                                      convertResults)
 import           Database.MySQL.Simple.Result       (convert)
 
-import           Data.Aeson                         (ToJSON (..), Value (..),
-                                                     decodeStrict, object, (.=))
+import           Data.Aeson                         (FromJSON (..), ToJSON (..),
+                                                     Value (..), decodeStrict,
+                                                     object, withObject, (.:),
+                                                     (.=))
 import           Data.Int                           (Int64)
 import           Data.Maybe                         (fromMaybe)
 import           Data.Text                          (Text)
@@ -66,3 +68,14 @@ instance ToJSON Device where
     , "type"       .= devType
     , "created_at" .= devCreatedAt
     ]
+
+instance FromJSON Device where
+  parseJSON = withObject "Device" $ \o -> do
+    devID        <- o .: "id"
+    devUserName  <- o .: "username"
+    devToken     <- o .: "token"
+    devUUID      <- o .: "uuid"
+    devMeta      <- o .: "meta"
+    devType      <- o .: "type"
+    devCreatedAt <- o .: "created_at"
+    return Device{..}

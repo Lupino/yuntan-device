@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main
@@ -12,8 +13,11 @@ import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        post, scottyOptsT,
                                                        settings)
 
-import           Yuntan.Types.HasMySQL                (HasMySQL, simpleEnv)
+import           Data.String                          (fromString)
+import           Yuntan.Types.HasMySQL                (HasMySQL, HasOtherEnv,
+                                                       simpleEnv)
 import           Yuntan.Types.Scotty                  (ScottyH)
+import           Yuntan.Utils.RedisCache              (initRedisState)
 
 import           Device
 import           Device.Handler
@@ -75,15 +79,19 @@ program Options { getConfigFile  = confFile
 
   let mysqlConfig  = C.mysqlConfig conf
       mysqlThreads = C.mysqlHaxlNumThreads mysqlConfig
+      redisConfig  = C.redisConfig conf
+      redisThreads = C.redisHaxlNumThreads redisConfig
 
       mqttConfig   = C.mqttConfig conf
 
 
   pool <- C.genMySQLPool mysqlConfig
+  redis <- C.genRedisConnection redisConfig
 
-  let state = stateSet (initDeviceState mysqlThreads) stateEmpty
+  let state = stateSet (initRedisState redisThreads $ fromString prefix)
+            $ stateSet (initDeviceState mysqlThreads) stateEmpty
 
-  let u = simpleEnv pool prefix ()
+  let u = simpleEnv pool prefix $ C.mkCache redis
 
   let opts = def { settings = setPort port
                             $ setHost (Host host) (settings def) }
@@ -99,7 +107,7 @@ program Options { getConfigFile  = confFile
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: HasMySQL u => MqttEnv -> ScottyH u ()
+application :: (HasMySQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u ()
 application mqtt = do
   middleware logStdout
 

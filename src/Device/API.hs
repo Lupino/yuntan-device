@@ -1,13 +1,9 @@
+{-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Device.API
-  ( createTable
-  , createDevice
+  ( createDevice
   , getDevice
-  , getDevIdByToken
-  , getDevIdByUuid
-  , getDevIdList
-  , getDevIdListByName
-  , getDevIdListByType
-  , getDevIdListByNameAndType
   , countDevice
   , countDeviceByName
   , countDeviceByType
@@ -17,76 +13,127 @@ module Device.API
   , updateDeviceType
   , removeDevice
   , updateDeviceMetaByUUID
+  , module X
   ) where
 
+import           Control.Monad           (void)
+import           Data.Aeson              (decodeStrict)
 import           Data.ByteString         (ByteString)
 import           Data.Int                (Int64)
-import           Haxl.Core               (GenHaxl, dataFetch, env,
-                                          uncachedRequest, userEnv)
-import           Yuntan.Types.HasMySQL   (HasMySQL, tablePrefix)
-
-import           Device.DataSource
+import           Data.String             (fromString)
+import           Data.Text               (pack, unpack)
+import           Device.Config           (Cache, redisEnv)
+import           Device.RawAPI           as X (createTable, getDevIdByToken,
+                                               getDevIdByUuid, getDevIdList,
+                                               getDevIdListByName,
+                                               getDevIdListByNameAndType,
+                                               getDevIdListByType)
+import qualified Device.RawAPI           as RawAPI
 import           Device.Types
-
-import           Control.Monad           (void, when)
-import           Data.Aeson              (decodeStrict)
-import           Data.Text               (pack)
-import           Yuntan.Types.ListResult (From, Size)
-import           Yuntan.Types.OrderBy    (OrderBy)
+import           Haxl.Core               (GenHaxl)
+import           Yuntan.Types.HasMySQL   (HasMySQL, HasOtherEnv)
 import           Yuntan.Utils.JSON       (unionValue)
+import           Yuntan.Utils.RedisCache (cached, cached', remove)
 
-createTable :: HasMySQL u => GenHaxl u Int64
-createTable = uncachedRequest CreateTable
+($>) :: GenHaxl u a -> GenHaxl u () -> GenHaxl u a
+io $> a = do
+  !r <- io
+  !_ <- a
+  return r
 
-createDevice :: HasMySQL u => UserName -> Token -> Type ->  GenHaxl u DeviceID
-createDevice un t tp = uncachedRequest (CreateDevice un t tp)
+genDeviceKey :: DeviceID -> ByteString
+genDeviceKey devid = fromString $ "device:" ++ show devid
 
-getDevice :: HasMySQL u => DeviceID -> GenHaxl u (Maybe Device)
-getDevice devid = dataFetch (GetDevice devid)
+unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u a -> GenHaxl u a
+unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
 
-getDevIdByToken :: HasMySQL u => Token -> GenHaxl u (Maybe DeviceID)
-getDevIdByToken t = dataFetch (GetDevIdByToken t)
+genCountKey :: String -> ByteString
+genCountKey k = fromString $ "count:" ++ k
 
-getDevIdByUuid :: HasMySQL u => UUID -> GenHaxl u (Maybe DeviceID)
-getDevIdByUuid uuid = dataFetch (GetDevIdByUuid uuid)
+genCountKeyByName :: UserName -> ByteString
+genCountKeyByName un = genCountKey ("device_name_" ++ unpack un)
 
-getDevIdList :: HasMySQL u => From -> Size -> OrderBy -> GenHaxl u [DeviceID]
-getDevIdList f s o = dataFetch (GetDevIdList f s o)
+genCountKeyByType :: Type -> ByteString
+genCountKeyByType tp = genCountKey ("device_type_" ++ unpack tp)
 
-countDevice :: HasMySQL u => GenHaxl u Int64
-countDevice = dataFetch CountDevice
+genCountKeyByNameAndType :: UserName -> Type -> ByteString
+genCountKeyByNameAndType un tp = genCountKey ("device_name_" ++ unpack un ++ "_type_" ++ unpack tp)
 
-getDevIdListByName :: HasMySQL u => UserName -> From -> Size -> OrderBy -> GenHaxl u [DeviceID]
-getDevIdListByName un f s o = dataFetch (GetDevIdListByName un f s o)
+unCacheCount :: HasOtherEnv Cache u => String -> GenHaxl u a -> GenHaxl u a
+unCacheCount k io = io $> remove redisEnv (genCountKey k)
 
-countDeviceByName :: HasMySQL u => UserName -> GenHaxl u Int64
-countDeviceByName un = dataFetch (CountDeviceByName un)
+unCacheCountByName :: HasOtherEnv Cache u => UserName -> GenHaxl u a -> GenHaxl u a
+unCacheCountByName un = unCacheCount ("device_name_" ++ unpack un)
 
-getDevIdListByType :: HasMySQL u => Type -> From -> Size -> OrderBy -> GenHaxl u [DeviceID]
-getDevIdListByType tp f s o = dataFetch (GetDevIdListByType tp f s o)
+unCacheCountByType :: HasOtherEnv Cache u => Type -> GenHaxl u a -> GenHaxl u a
+unCacheCountByType tp = unCacheCount ("device_type_" ++ unpack tp)
 
-countDeviceByType :: HasMySQL u => Type -> GenHaxl u Int64
-countDeviceByType tp = dataFetch (CountDeviceByType tp)
+unCacheCountByNameAndType :: HasOtherEnv Cache u => UserName -> Type -> GenHaxl u a -> GenHaxl u a
+unCacheCountByNameAndType un tp = unCacheCount ("device_name_" ++ unpack un ++ "_type_" ++ unpack tp)
 
-getDevIdListByNameAndType :: HasMySQL u => UserName -> Type -> From -> Size -> OrderBy -> GenHaxl u [DeviceID]
-getDevIdListByNameAndType un tp f s o = dataFetch (GetDevIdListByNameAndType un tp f s o)
+createDevice :: (HasMySQL u, HasOtherEnv Cache u) => UserName -> Token -> Type ->  GenHaxl u DeviceID
+createDevice un t tp =
+  unCacheCountByNameAndType un tp
+  $ unCacheCountByType tp
+  $ unCacheCountByName un
+  $ unCacheCount "device"
+  $ RawAPI.createDevice un t tp
 
-countDeviceByNameAndType :: HasMySQL u => UserName -> Type -> GenHaxl u Int64
-countDeviceByNameAndType un tp = dataFetch (CountDeviceByNameAndType un tp)
+getDevice :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u (Maybe Device)
+getDevice devid = cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
 
-updateDeviceMeta :: HasMySQL u => DeviceID -> Meta -> GenHaxl u Int64
-updateDeviceMeta devid meta = uncachedRequest (UpdateDeviceMeta devid meta)
+countDevice :: (HasMySQL u, HasOtherEnv Cache u) => GenHaxl u Int64
+countDevice = cached' redisEnv (genCountKey "device") RawAPI.countDevice
 
-updateDeviceType :: HasMySQL u => DeviceID -> Type -> GenHaxl u Int64
-updateDeviceType devid tp = uncachedRequest (UpdateDeviceType devid tp)
+countDeviceByName :: (HasMySQL u, HasOtherEnv Cache u) => UserName -> GenHaxl u Int64
+countDeviceByName un =
+  cached' redisEnv (genCountKeyByName un)
+  $ RawAPI.countDeviceByName un
 
-updateDeviceToken :: HasMySQL u => DeviceID -> Token -> GenHaxl u Int64
-updateDeviceToken devid t = uncachedRequest (UpdateDeviceToken devid t)
+countDeviceByType :: (HasMySQL u, HasOtherEnv Cache u) => Type -> GenHaxl u Int64
+countDeviceByType tp =
+  cached' redisEnv (genCountKeyByType tp)
+  $ RawAPI.countDeviceByType tp
 
-removeDevice :: HasMySQL u => DeviceID -> GenHaxl u Int64
-removeDevice devid = uncachedRequest (RemoveDevice devid)
+countDeviceByNameAndType :: (HasMySQL u, HasOtherEnv Cache u) => UserName -> Type -> GenHaxl u Int64
+countDeviceByNameAndType un tp =
+  cached' redisEnv (genCountKeyByNameAndType un tp)
+  $ RawAPI.countDeviceByNameAndType un tp
 
-updateDeviceMetaByUUID :: HasMySQL u => String -> ByteString -> GenHaxl u ()
+updateDeviceMeta
+  :: (HasMySQL u, HasOtherEnv Cache u)
+  => DeviceID -> Meta -> GenHaxl u Int64
+updateDeviceMeta devid meta = unCacheDevice devid $ RawAPI.updateDeviceMeta devid meta
+
+updateDeviceType :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> Type -> GenHaxl u Int64
+updateDeviceType devid tp = do
+  dev' <- getDevice devid
+  case dev' of
+    Nothing -> return 0
+    Just dev ->
+      unCacheDevice devid
+      $ unCacheCountByType (devType dev)
+      $ unCacheCountByType tp
+      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
+      $ unCacheCountByNameAndType (devUserName dev) tp
+      $ RawAPI.updateDeviceType devid tp
+
+updateDeviceToken :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> Token -> GenHaxl u Int64
+updateDeviceToken devid t = unCacheDevice devid $ RawAPI.updateDeviceToken devid t
+
+removeDevice :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u Int64
+removeDevice devid = do
+  dev' <- getDevice devid
+  case dev' of
+    Nothing -> return 0
+    Just dev ->
+      unCacheDevice devid
+      $ unCacheCountByType (devType dev)
+      $ unCacheCountByName (devUserName dev)
+      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
+      $ RawAPI.removeDevice devid
+
+updateDeviceMetaByUUID :: (HasMySQL u, HasOtherEnv Cache u) => String -> ByteString -> GenHaxl u ()
 updateDeviceMetaByUUID uuid meta = do
   devid <- getDevIdByUuid $ pack uuid
   case devid of
