@@ -18,7 +18,7 @@ import           Data.Aeson                (FromJSON, parseJSON, withObject,
                                             (.!=), (.:), (.:?))
 import           Data.Text                 (Text)
 import           Database.Redis            (Connection)
-import           Network                   (HostName)
+import           Network.Socket            (HostName)
 import           Yuntan.Config.MySQLConfig (MySQLConfig (..), genMySQLPool)
 import           Yuntan.Config.RedisConfig (RedisConfig (..),
                                             defaultRedisConfig,
