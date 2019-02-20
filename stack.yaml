@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-12.20
+resolver: lts-13.8
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -41,7 +41,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: cfc461bd81713b3d9373bc12fe6063ae13a9339f
+  commit: 90d5bc197efd933c2e5a2589ea97f68ab788d91b
   subdirs:
   - yuntan-common-scotty
   - yuntan-common-scotty-type
@@ -50,6 +50,8 @@ extra-deps:
   - yuntan-common-result
   - yuntan-common-json
   - yuntan-common-order
+  - yuntan-common-config-redis
+  - yuntan-common-redis-caching
 - git: https://github.com/Lupino/mqtt-hs.git
   commit: e8b164e9bac47ded1940edbb5dd48a627db1ccc2
 
@@ -76,3 +78,5 @@ extra-package-dbs: []
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+
+allow-newer: true
