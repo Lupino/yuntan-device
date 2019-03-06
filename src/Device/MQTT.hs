@@ -136,13 +136,15 @@ startMQTT key MqttConfig{..} saveAttributes = do
   cache <- newCache (Just $ TimeSpec 300 0)
 
   cmds <- mkCommands
+
+  clientId <- genHex 20
   -- create one channel per conduit, each one receiving all the messages
   pubChan0 <- newTChanIO
   pubChan1 <- atomically $ cloneTChan pubChan0
   let conf = (defaultConfig cmds pubChan0)
               { cUsername  = Just mqttUsername
               , cPassword  = Just mqttPassword
-              , cClientID  = pack key
+              , cClientID  = pack clientId
               , cHost      = mqttHost
               , cPort      = fromIntegral mqttPort
               , cKeepAlive = Just 4000
