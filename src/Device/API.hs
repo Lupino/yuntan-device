@@ -17,11 +17,12 @@ module Device.API
   ) where
 
 import           Control.Monad           (void)
-import           Data.Aeson              (decodeStrict)
+import           Data.Aeson              (decode)
 import           Data.ByteString         (ByteString)
+import qualified Data.ByteString.Lazy    as LB (ByteString)
 import           Data.Int                (Int64)
 import           Data.String             (fromString)
-import           Data.Text               (pack, unpack)
+import           Data.Text               (Text, pack, unpack)
 import           Device.Config           (Cache, redisEnv)
 import           Device.RawAPI           as X (createTable, getDevIdByToken,
                                                getDevIdByUuid, getDevIdList,
@@ -133,9 +134,9 @@ removeDevice devid = do
       $ unCacheCountByNameAndType (devUserName dev) (devType dev)
       $ RawAPI.removeDevice devid
 
-updateDeviceMetaByUUID :: (HasMySQL u, HasOtherEnv Cache u) => String -> ByteString -> GenHaxl u ()
+updateDeviceMetaByUUID :: (HasMySQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> GenHaxl u ()
 updateDeviceMetaByUUID uuid meta = do
-  devid <- getDevIdByUuid $ pack uuid
+  devid <- getDevIdByUuid uuid
   case devid of
     Nothing -> pure ()
     Just did -> do
@@ -143,6 +144,6 @@ updateDeviceMetaByUUID uuid meta = do
       case dev of
         Nothing -> pure ()
         Just Device{devMeta = ometa} ->
-          case decodeStrict meta of
+          case decode meta of
             Nothing -> pure ()
             Just ev -> void (updateDeviceMeta did $ unionValue ev ometa)

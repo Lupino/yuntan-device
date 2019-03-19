@@ -26,9 +26,9 @@ import           Yuntan.Config.RedisConfig (RedisConfig (..),
 import           Yuntan.Types.HasMySQL     (HasOtherEnv, otherEnv)
 
 data MqttConfig = MqttConfig
-  { mqttUsername :: Text
-  , mqttPassword :: Text
-  , mqttHost     :: HostName
+  { mqttUsername :: String
+  , mqttPassword :: String
+  , mqttHost     :: String
   , mqttPort     :: Int
   } deriving (Show)
 

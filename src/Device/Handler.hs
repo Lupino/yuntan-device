@@ -156,10 +156,10 @@ rpcHandler :: HasMySQL u => MqttEnv -> Device -> ActionH u ()
 rpcHandler mqtt Device{devUUID = uuid} = do
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
-  r <- liftIO $ request mqtt (T.unpack uuid) payload tout
+  r <- liftIO $ request mqtt uuid payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do
       isjson <- safeParam "format" ("raw" :: String)
       when (isjson == "json") $ addHeader "Content-Type" "application/json; charset=utf-8"
-      raw $ fromStrict v
+      raw v
