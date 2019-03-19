@@ -22,7 +22,7 @@ import           Data.ByteString         (ByteString)
 import qualified Data.ByteString.Lazy    as LB (ByteString)
 import           Data.Int                (Int64)
 import           Data.String             (fromString)
-import           Data.Text               (Text, pack, unpack)
+import           Data.Text               (Text, unpack)
 import           Device.Config           (Cache, redisEnv)
 import           Device.RawAPI           as X (createTable, getDevIdByToken,
                                                getDevIdByUuid, getDevIdList,

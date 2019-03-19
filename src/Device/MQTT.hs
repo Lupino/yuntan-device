@@ -8,31 +8,25 @@ module Device.MQTT
   , MqttEnv (..)
   , request
   ) where
-import           Conduit                   (ConduitT, Void, awaitForever,
-                                            runConduit, yield, (.|))
-import           Control.Concurrent        (forkIO, threadDelay)
-import           Control.Concurrent.STM    (TChan, TVar, atomically, cloneTChan,
-                                            newTChanIO, newTVarIO, readTChan,
-                                            readTVarIO, retry, writeTVar)
-import           Control.Exception         (SomeException, try)
-import           Control.Monad             (forever, void, when)
-import           Control.Monad.IO.Class    (MonadIO, liftIO)
-import           Control.Monad.Trans.Class (lift)
-import qualified Data.ByteString.Char8     as B (unpack)
-import           Data.ByteString.Lazy      (ByteString)
-import           Data.Cache                (Cache (..), newCache)
-import qualified Data.Cache                as Cache (deleteSTM, insert',
-                                                     insertSTM, lookupSTM,
-                                                     purgeExpired)
-import           Data.Hex                  (hex)
-import           Data.Int                  (Int64)
-import           Data.String               (fromString)
-import           Data.Text                 (Text, append, pack, splitOn, unpack)
-import           Device.Config             (MqttConfig (..))
+
+import           Control.Concurrent     (forkIO, threadDelay)
+import           Control.Concurrent.STM (TVar, atomically, newTVarIO,
+                                         readTVarIO, retry, writeTVar)
+import           Control.Exception      (SomeException, try)
+import           Control.Monad          (forever, void)
+import qualified Data.ByteString.Char8  as B (unpack)
+import           Data.ByteString.Lazy   (ByteString)
+import           Data.Cache             (Cache (..), newCache)
+import qualified Data.Cache             as Cache (deleteSTM, insert', insertSTM,
+                                                  lookupSTM, purgeExpired)
+import           Data.Hex               (hex)
+import           Data.Int               (Int64)
+import           Data.Text              (Text, append, pack, splitOn)
+import           Device.Config          (MqttConfig (..))
 import           Network.MQTT.Client
-import           System.Clock              (Clock (Monotonic), TimeSpec (..),
-                                            getTime)
-import           System.Entropy            (getEntropy)
+import           System.Clock           (Clock (Monotonic), TimeSpec (..),
+                                         getTime)
+import           System.Entropy         (getEntropy)
 
 type ResponseCache = Cache Text (Maybe ByteString)
 
