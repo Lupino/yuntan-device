@@ -30,7 +30,7 @@ import           System.Clock           (Clock (Monotonic), TimeSpec (..),
 import           System.Entropy         (getEntropy)
 
 type ResponseCache = Cache Text (Maybe ByteString)
-type RequestCache  = Cache Text ByteString
+type RequestCache  = Cache Text (Maybe ByteString)
 
 data MqttEnv = MqttEnv
   { mKey      :: String -- the service key
@@ -86,7 +86,15 @@ request MqttEnv {..} uuid p t = do
 cacheAble :: MqttEnv -> Text -> Int64 -> IO (Maybe ByteString) -> IO (Maybe ByteString)
 cacheAble MqttEnv {..} h t io = do
   now <- getTime Monotonic
-  r <- atomically $ Cache.lookupSTM True h mReqCache now
+  r <- atomically $ do
+    r <- Cache.lookupSTM True h mReqCache now
+    case r of
+      Just Nothing  -> retry
+      Just (Just v) -> pure (Just v)
+      Nothing       -> do
+        Cache.insertSTM h Nothing mReqCache (Just $ now + TimeSpec t 0)
+        pure Nothing
+
   case r of
     Just v -> return $ Just v
     Nothing -> do
@@ -94,7 +102,7 @@ cacheAble MqttEnv {..} h t io = do
       case ro of
         Nothing -> return Nothing
         Just vo -> do
-          Cache.insert' mReqCache (Just $ TimeSpec t 0) h vo
+          Cache.insert' mReqCache (Just $ TimeSpec t 0) h (Just vo)
           return $ Just vo
 
 messageCallback :: (Text -> ByteString -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> IO ()
