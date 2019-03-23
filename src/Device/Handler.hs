@@ -24,7 +24,7 @@ import qualified Data.Text               as T (null)
 import           Data.UUID               (fromText)
 import           Device
 import           Device.Config           (Cache)
-import           Device.MQTT             (MqttEnv, request)
+import           Device.MQTT             (MqttEnv, cacheAble, request)
 import           Haxl.Core               (GenHaxl)
 import           Network.HTTP.Types      (status403, status500)
 import           Web.Scotty.Trans        (addHeader, json, param, raw)
@@ -155,7 +155,10 @@ rpcHandler :: HasMySQL u => MqttEnv -> Device -> ActionH u ()
 rpcHandler mqtt Device{devUUID = uuid} = do
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
-  r <- liftIO $ request mqtt uuid payload tout
+  cacheHash <- safeParam "cache-hash" ""
+  cacheTimeout <- safeParam "cache-timeout" 10
+  let ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
+  r <- liftIO $ ca $ request mqtt uuid payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do

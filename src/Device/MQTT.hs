@@ -7,6 +7,7 @@ module Device.MQTT
   ( startMQTT
   , MqttEnv (..)
   , request
+  , cacheAble
   ) where
 
 import           Control.Concurrent     (forkIO, threadDelay)
@@ -29,11 +30,13 @@ import           System.Clock           (Clock (Monotonic), TimeSpec (..),
 import           System.Entropy         (getEntropy)
 
 type ResponseCache = Cache Text (Maybe ByteString)
+type RequestCache  = Cache Text ByteString
 
 data MqttEnv = MqttEnv
-  { mKey    :: String -- the service key
-  , mClient :: TVar MQTTClient
-  , mCache  :: ResponseCache
+  { mKey      :: String -- the service key
+  , mClient   :: TVar (Maybe MQTTClient)
+  , mResCache :: ResponseCache
+  , mReqCache :: RequestCache
   }
 
 -- /:key/:uuid/request/:requestid
@@ -61,43 +64,61 @@ request MqttEnv {..} uuid p t = do
 
   let k = responseKey uuid reqid
 
-  Cache.insert' mCache (Just $ TimeSpec t 0) k Nothing
+  Cache.insert' mResCache (Just $ TimeSpec t 0) k Nothing
 
   client <- readTVarIO mClient
+  case client of
+    Nothing -> return Nothing
+    Just c -> do
+      publish c (requestTopic mKey uuid reqid) p False
 
-  publish client (requestTopic mKey uuid reqid) p False
+      now <- getTime Monotonic
 
+      atomically $ do
+        r <- Cache.lookupSTM True k mResCache now
+        case r of
+          Nothing -> pure Nothing
+          Just Nothing -> retry
+          Just v -> do
+            Cache.deleteSTM k mResCache
+            pure v
+
+cacheAble :: MqttEnv -> Text -> Int64 -> IO (Maybe ByteString) -> IO (Maybe ByteString)
+cacheAble MqttEnv {..} h t io = do
   now <- getTime Monotonic
-
-  atomically $ do
-    r <- Cache.lookupSTM True k mCache now
-    case r of
-      Nothing -> pure Nothing
-      Just Nothing -> retry
-      Just v -> do
-        Cache.deleteSTM k mCache
-        pure v
+  r <- atomically $ Cache.lookupSTM True h mReqCache now
+  case r of
+    Just v -> return $ Just v
+    Nothing -> do
+      ro <- io
+      case ro of
+        Nothing -> return Nothing
+        Just vo -> do
+          Cache.insert' mReqCache (Just $ TimeSpec t 0) h vo
+          return $ Just vo
 
 messageCallback :: (Text -> ByteString -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> IO ()
-messageCallback saveAttributes cache _ topic payload =
+messageCallback saveAttributes resCache _ topic payload =
   case splitOn "/" topic of
     (_:_:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
       now <- getTime Monotonic
-      let t = case defaultExpiration cache of
+      let t = case defaultExpiration resCache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
       atomically $ do
-        r <- Cache.lookupSTM True k cache now
+        r <- Cache.lookupSTM True k resCache now
         case r of
           Nothing -> pure ()
-          Just _  -> Cache.insertSTM k (Just payload) cache t
+          Just _  -> Cache.insertSTM k (Just payload) resCache t
     (_:_:uuid:"attributes":_) -> saveAttributes uuid payload
     _ -> pure ()
 
 startMQTT :: String -> MqttConfig -> (Text -> ByteString -> IO ())-> IO MqttEnv
 startMQTT key MqttConfig{..} saveAttributes = do
-  cache <- newCache (Just $ TimeSpec 300 0)
+  resCache <- newCache (Just $ TimeSpec 300 0)
+  reqCache <- newCache (Just $ TimeSpec 10 0)
+
   mc <- newTVarIO $ error "not initial"
 
   clientId <- genHex 20
@@ -108,13 +129,13 @@ startMQTT key MqttConfig{..} saveAttributes = do
         , _connID   = clientId
         , _username = Just mqttUsername
         , _password = Just mqttPassword
-        , _msgCB = Just (messageCallback saveAttributes cache)
+        , _msgCB = Just (messageCallback saveAttributes resCache)
         }
 
   void $ forkIO $ forever $ do
     r <- try $ do
       client <- runClient conf
-      atomically $ writeTVar mc client
+      atomically $ writeTVar mc $ Just client
       print =<< subscribe client [(responseTopic key, QoS0), (attrTopic key, QoS0)]
       print =<< waitForClient client   -- wait for the the client to disconnect
 
@@ -125,11 +146,13 @@ startMQTT key MqttConfig{..} saveAttributes = do
     threadDelay 1000000
 
   void $ forkIO $ forever $ do
-    Cache.purgeExpired cache
+    Cache.purgeExpired resCache
+    Cache.purgeExpired reqCache
     threadDelay 1000000
 
   pure MqttEnv
     { mKey = key
     , mClient = mc
-    , mCache = cache
+    , mResCache = resCache
+    , mReqCache = reqCache
     }
