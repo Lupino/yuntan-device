@@ -13,17 +13,15 @@ module Device.DataSource.Device
   , countDeviceByName
   , countDeviceByType
   , countDeviceByNameAndType
-  , updateDeviceMeta
-  , updateDeviceToken
-  , updateDeviceType
+  , updateDevice
   , removeDevice
   ) where
 
 import           Control.Monad           (void)
-import           Data.Aeson              (encode)
 import           Data.Int                (Int64)
 import           Data.Maybe              (listToMaybe)
 import           Data.String             (fromString)
+import           Data.Text               (Text)
 import           Data.UnixTime
 import           Data.UUID               (toText)
 import           Data.UUID.V4            (nextRandom)
@@ -124,22 +122,10 @@ countDeviceByNameAndType un tp prefix conn =
           [ "SELECT count(*) FROM `", prefix, "_devices` WHERE `username` = ? AND `type` = ?"
           ]
 
-updateDeviceMeta :: DeviceID -> Meta -> MySQL Int64
-updateDeviceMeta devid meta prefix conn = execute conn sql (encode meta, devid)
+updateDevice :: DeviceID -> String -> Text -> MySQL Int64
+updateDevice devid field value prefix conn = execute conn sql (value, devid)
   where sql = fromString $ concat
-          [ "UPDATE `", prefix, "_devices` SET `meta` = ? WHERE `id`=?"
-          ]
-
-updateDeviceType :: DeviceID -> Type -> MySQL Int64
-updateDeviceType devid tp prefix conn = execute conn sql (tp, devid)
-  where sql = fromString $ concat
-          [ "UPDATE `", prefix, "_devices` SET `type` = ? WHERE `id`=?"
-          ]
-
-updateDeviceToken :: DeviceID -> Token -> MySQL Int64
-updateDeviceToken devid token prefix conn = execute conn sql (token, devid)
-  where sql = fromString $ concat
-          [ "UPDATE `", prefix, "_devices` SET `token` = ? WHERE `id`=?"
+          [ "UPDATE `", prefix, "_devices` SET `", field , "` = ? WHERE `id`=?"
           ]
 
 removeDevice :: DeviceID -> MySQL Int64

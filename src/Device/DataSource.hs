@@ -12,6 +12,7 @@ module Device.DataSource
   ) where
 
 import           Data.Hashable            (Hashable (..))
+import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
 import           Haxl.Core                hiding (env, fetchReq)
 
@@ -46,9 +47,7 @@ data DeviceReq a where
   CountDeviceByType :: Type -> DeviceReq Int64
   GetDevIdListByNameAndType :: UserName -> Type -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
   CountDeviceByNameAndType :: UserName -> Type -> DeviceReq Int64
-  UpdateDeviceMeta :: DeviceID -> Meta -> DeviceReq Int64
-  UpdateDeviceType :: DeviceID -> Type -> DeviceReq Int64
-  UpdateDeviceToken :: DeviceID -> Token -> DeviceReq Int64
+  UpdateDevice :: DeviceID -> String -> Text -> DeviceReq Int64
   RemoveDevice :: DeviceID -> DeviceReq Int64
 
   deriving (Typeable)
@@ -68,9 +67,7 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (CountDeviceByType t)                  = hashWithSalt s (11::Int, t)
   hashWithSalt s (GetDevIdListByNameAndType u t f si o) = hashWithSalt s (12::Int, u, t, f, si, o)
   hashWithSalt s (CountDeviceByNameAndType u t)         = hashWithSalt s (13::Int, u, t)
-  hashWithSalt s (UpdateDeviceMeta i m)                 = hashWithSalt s (14::Int, i, m)
-  hashWithSalt s (UpdateDeviceType i t)                 = hashWithSalt s (15::Int, i, t)
-  hashWithSalt s (UpdateDeviceToken i t)                = hashWithSalt s (16::Int, i, t)
+  hashWithSalt s (UpdateDevice i f t)                   = hashWithSalt s (16::Int, i, f, t)
   hashWithSalt s (RemoveDevice i)                       = hashWithSalt s (17::Int, i)
 
 deriving instance Show (DeviceReq a)
@@ -128,9 +125,7 @@ fetchReq (GetDevIdListByType t f si o)          = getDevIdListByType t f si o
 fetchReq (CountDeviceByType t)                  = countDeviceByType t
 fetchReq (GetDevIdListByNameAndType u t f si o) = getDevIdListByNameAndType u t f si o
 fetchReq (CountDeviceByNameAndType u t)         = countDeviceByNameAndType u t
-fetchReq (UpdateDeviceMeta i m)                 = updateDeviceMeta i m
-fetchReq (UpdateDeviceType i t)                 = updateDeviceType i t
-fetchReq (UpdateDeviceToken i t)                = updateDeviceToken i t
+fetchReq (UpdateDevice i f t)                   = updateDevice i f t
 fetchReq (RemoveDevice i)                       = removeDevice i
 
 initDeviceState :: Int -> State DeviceReq

@@ -11,18 +11,20 @@ module Device.API
   , updateDeviceMeta
   , updateDeviceToken
   , updateDeviceType
+  , updateDeviceUserName
   , removeDevice
   , updateDeviceMetaByUUID
   , module X
   ) where
 
 import           Control.Monad           (void)
-import           Data.Aeson              (decode)
+import           Data.Aeson              (decode, encode)
 import           Data.ByteString         (ByteString)
-import qualified Data.ByteString.Lazy    as LB (ByteString)
+import qualified Data.ByteString.Lazy    as LB (ByteString, toStrict)
 import           Data.Int                (Int64)
 import           Data.String             (fromString)
 import           Data.Text               (Text, unpack)
+import           Data.Text.Encoding      (decodeUtf8)
 import           Device.Config           (Cache, redisEnv)
 import           Device.RawAPI           as X (createTable, getDevIdByToken,
                                                getDevIdByUuid, getDevIdList,
@@ -104,7 +106,7 @@ countDeviceByNameAndType un tp =
 updateDeviceMeta
   :: (HasMySQL u, HasOtherEnv Cache u)
   => DeviceID -> Meta -> GenHaxl u Int64
-updateDeviceMeta devid meta = unCacheDevice devid $ RawAPI.updateDeviceMeta devid meta
+updateDeviceMeta devid = updateDevice devid "meta" . decodeUtf8 . LB.toStrict . encode
 
 updateDeviceType :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> Type -> GenHaxl u Int64
 updateDeviceType devid tp = do
@@ -112,15 +114,27 @@ updateDeviceType devid tp = do
   case dev' of
     Nothing -> return 0
     Just dev ->
-      unCacheDevice devid
-      $ unCacheCountByType (devType dev)
+      unCacheCountByType (devType dev)
       $ unCacheCountByType tp
       $ unCacheCountByNameAndType (devUserName dev) (devType dev)
       $ unCacheCountByNameAndType (devUserName dev) tp
-      $ RawAPI.updateDeviceType devid tp
+      $ updateDevice devid "type" tp
 
 updateDeviceToken :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> Token -> GenHaxl u Int64
-updateDeviceToken devid t = unCacheDevice devid $ RawAPI.updateDeviceToken devid t
+updateDeviceToken devid = updateDevice devid "token"
+
+updateDeviceUserName :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> UserName -> GenHaxl u Int64
+updateDeviceUserName devid un = do
+  dev' <- getDevice devid
+  case dev' of
+    Nothing -> return 0
+    Just dev ->
+      unCacheCountByName (devUserName dev)
+      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
+      $ updateDevice devid "username" un
+
+updateDevice :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -> GenHaxl u Int64
+updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasMySQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u Int64
 removeDevice devid = do

@@ -129,6 +129,9 @@ application mqtt = do
   post "/api/users/:username/devices/:uuidOrToken/meta/" $
     requireDevice $ requireOwner updateDeviceMetaHandler
 
+  post "/api/devices/:uuidOrToken/username/" $
+    requireDevice updateDeviceUserNameHandler
+
   get "/api/devices/" getDeviceListHandler
 
   get "/api/users/:username/devices/" getDeviceListByNameHandler

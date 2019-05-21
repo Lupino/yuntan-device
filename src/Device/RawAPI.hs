@@ -12,14 +12,10 @@ module Device.RawAPI
   , countDeviceByName
   , countDeviceByType
   , countDeviceByNameAndType
-  , updateDeviceMeta
-  , updateDeviceToken
-  , updateDeviceType
+  , updateDevice
   , removeDevice
-  , updateDeviceMetaByUUID
   ) where
 
-import           Data.ByteString         (ByteString)
 import           Data.Int                (Int64)
 import           Haxl.Core               (GenHaxl, dataFetch, uncachedRequest)
 import           Yuntan.Types.HasMySQL   (HasMySQL)
@@ -27,12 +23,9 @@ import           Yuntan.Types.HasMySQL   (HasMySQL)
 import           Device.DataSource
 import           Device.Types
 
-import           Control.Monad           (void)
-import           Data.Aeson              (decodeStrict)
-import           Data.Text               (pack)
+import           Data.Text               (Text)
 import           Yuntan.Types.ListResult (From, Size)
 import           Yuntan.Types.OrderBy    (OrderBy)
-import           Yuntan.Utils.JSON       (unionValue)
 
 createTable :: HasMySQL u => GenHaxl u Int64
 createTable = uncachedRequest CreateTable
@@ -73,28 +66,8 @@ getDevIdListByNameAndType un tp f s o = dataFetch (GetDevIdListByNameAndType un 
 countDeviceByNameAndType :: HasMySQL u => UserName -> Type -> GenHaxl u Int64
 countDeviceByNameAndType un tp = dataFetch (CountDeviceByNameAndType un tp)
 
-updateDeviceMeta :: HasMySQL u => DeviceID -> Meta -> GenHaxl u Int64
-updateDeviceMeta devid meta = uncachedRequest (UpdateDeviceMeta devid meta)
-
-updateDeviceType :: HasMySQL u => DeviceID -> Type -> GenHaxl u Int64
-updateDeviceType devid tp = uncachedRequest (UpdateDeviceType devid tp)
-
-updateDeviceToken :: HasMySQL u => DeviceID -> Token -> GenHaxl u Int64
-updateDeviceToken devid t = uncachedRequest (UpdateDeviceToken devid t)
+updateDevice :: HasMySQL u => DeviceID -> String -> Text -> GenHaxl u Int64
+updateDevice devid f t = uncachedRequest (UpdateDevice devid f t)
 
 removeDevice :: HasMySQL u => DeviceID -> GenHaxl u Int64
 removeDevice devid = uncachedRequest (RemoveDevice devid)
-
-updateDeviceMetaByUUID :: HasMySQL u => String -> ByteString -> GenHaxl u ()
-updateDeviceMetaByUUID uuid meta = do
-  devid <- getDevIdByUuid $ pack uuid
-  case devid of
-    Nothing -> pure ()
-    Just did -> do
-      dev <- getDevice did
-      case dev of
-        Nothing -> pure ()
-        Just Device{devMeta = ometa} ->
-          case decodeStrict meta of
-            Nothing -> pure ()
-            Just ev -> void (updateDeviceMeta did $ unionValue ev ometa)

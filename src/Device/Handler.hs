@@ -7,6 +7,7 @@ module Device.Handler
   , updateDeviceMetaHandler
   , updateDeviceTypeHandler
   , updateDeviceTokenHandler
+  , updateDeviceUserNameHandler
   , getDeviceListHandler
   , getDeviceListByNameHandler
   , removeDeviceHandler
@@ -97,6 +98,13 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   case decode meta of
     Just ev -> void (lift $ updateDeviceMeta did $ unionValue ev ometa) >> resultOK
     Nothing -> errBadRequest "meta filed is required."
+
+-- POST /api/devices/:uuidOrToken/username/
+updateDeviceUserNameHandler :: (HasMySQL u, HasOtherEnv Cache u) => Device -> ActionH u ()
+updateDeviceUserNameHandler Device{devID = did} = do
+  un <- param "username"
+  ret <- lift $ updateDeviceUserName did un
+  resultOKOrErr ret "update device username failed"
 
 -- GET /api/devices/
 getDeviceListHandler :: (HasMySQL u, HasOtherEnv Cache u) => ActionH u ()
