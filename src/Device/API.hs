@@ -146,6 +146,7 @@ removeDevice devid = do
       $ unCacheCountByType (devType dev)
       $ unCacheCountByName (devUserName dev)
       $ unCacheCountByNameAndType (devUserName dev) (devType dev)
+      $ unCacheCount "device"
       $ RawAPI.removeDevice devid
 
 updateDeviceMetaByUUID :: (HasMySQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> GenHaxl u ()
