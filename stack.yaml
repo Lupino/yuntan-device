@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-13.13
+resolver: lts-13.27
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -40,7 +40,8 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- net-mqtt-0.2.4.1
+- git: https://github.com/Lupino/net-mqtt.git
+  commit: 40e4dde2feef8692b9e30196e13d58cd53699523
 - git: https://github.com/Lupino/yuntan-common.git
   commit: 90d5bc197efd933c2e5a2589ea97f68ab788d91b
   subdirs:
