@@ -102,12 +102,12 @@ program Options { getConfigFile  = confFile
     runIO u state (updateDeviceMetaByUUID uuid bs)
 
   scottyOptsT opts (runIO u state) (application mqtt)
-  where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u b -> IO b
+  where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u w b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: (HasMySQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u ()
+application :: (HasMySQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
 application mqtt = do
   middleware logStdout
 
