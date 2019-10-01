@@ -105,8 +105,8 @@ cacheAble MqttEnv {..} h t io = do
           Cache.insert' mReqCache (Just $ TimeSpec t 0) h (Just vo)
           return $ Just vo
 
-messageCallback :: (Text -> ByteString -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> IO ()
-messageCallback saveAttributes resCache _ topic payload =
+messageCallback :: (Text -> ByteString -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
+messageCallback saveAttributes resCache _ topic payload _ =
   case splitOn "/" topic of
     (_:_:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
@@ -137,14 +137,14 @@ startMQTT key MqttConfig{..} saveAttributes = do
         , _connID   = clientId
         , _username = Just mqttUsername
         , _password = Just mqttPassword
-        , _msgCB = Just (messageCallback saveAttributes resCache)
+        , _msgCB = SimpleCallback (messageCallback saveAttributes resCache)
         }
 
   void $ forkIO $ forever $ do
     r <- try $ do
       client <- runClient conf
       atomically $ writeTVar mc $ Just client
-      print =<< subscribe client [(responseTopic key, QoS0), (attrTopic key, QoS0)]
+      print =<< subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
       print =<< waitForClient client   -- wait for the the client to disconnect
 
     case r of
