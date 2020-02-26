@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-14.6
+resolver: lts-14.20
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -43,11 +43,11 @@ extra-deps:
 - git: https://github.com/dustin/mqtt-hs.git
   commit: 398b55fd629bb8afb1b35b4a22fe5d0fda6a9758
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: d33d75348877c1339b34e20abcff6ed4df567adf
+  commit: 37fade5a82307b72b815f2666d58e7fcc74f8672
   subdirs:
   - yuntan-common-scotty
   - yuntan-common-scotty-type
-  - yuntan-common-config-mysql
+  - yuntan-common-config-psql
   - yuntan-common-list-result
   - yuntan-common-result
   - yuntan-common-json

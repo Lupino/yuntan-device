@@ -4,33 +4,41 @@ module Device.DataSource.Table
   ( createTable
   ) where
 
-import           Database.MySQL.Simple (Connection, execute_)
+import           Data.Int                   (Int64)
+import           Data.String                (fromString)
+import           Database.PostgreSQL.Simple (execute_)
+import           Yuntan.Types.HasPSQL       (PSQL)
 
-import           Data.Int              (Int64)
-import           Data.String           (fromString)
-
-import           Device.Types
-
-createDeviceTable :: TablePrefix -> Connection -> IO Int64
+createDeviceTable :: PSQL Int64
 createDeviceTable prefix conn = execute_ conn sql
   where sql = fromString $ concat
-          [ "CREATE TABLE IF NOT EXISTS `", prefix, "_devices` ("
-          , "  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,"
-          , "  `username` varchar(128) NOT NULL,"
-          , "  `token` varchar(128) NOT NULL,"
-          , "  `uuid` varchar(128) NOT NULL,"
-          , "  `meta` varchar(1500) NOT NULL,"
-          , "  `type` varchar(128) NOT NULL,"
-          , "  `created_at` int(10) unsigned NOT NULL,"
-          , "  PRIMARY KEY (`id`),"
-          , "  UNIQUE KEY `device_token` (`token`),"
-          , "  UNIQUE KEY `device_uuid` (`uuid`),"
-          , "  KEY `device_username_type` (`username`, `type`),"
-          , "  KEY `device_type` (`type`)"
-          , ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+          [ "CREATE TABLE IF NOT EXISTS ", prefix, "_devices ("
+          , "  id SERIAL PRIMARY KEY,"
+          , "  username CHAR(20) NOT NULL,"
+          , "  token CHAR(36) NOT NULL,"
+          , "  uuid CHAR(36) NOT NULL,"
+          , "  meta JSON NOT NULL,"
+          , "  type CHAR(10) NOT NULL,"
+          , "  created_at INT NOT NULL"
+          , ")"
           ]
 
+createIndex :: Bool -> String -> String -> String -> PSQL Int64
+createIndex uniq tableName indexName columns prefix conn = execute_ conn sql
+  where sql = fromString $ concat
+          [ "CREATE ", uniqWord, "INDEX IF NOT EXISTS ", indexName
+          , " ON " , prefix, tableName, "(", columns, ")"
+          ]
 
-createTable :: TablePrefix -> Connection -> IO Int64
+        uniqWord = if uniq then "UNIQUE " else ""
+
+
+createTable :: PSQL Int64
 createTable prefix conn =
-  sum <$> mapM (\o -> o prefix conn) [ createDeviceTable ]
+  sum <$> mapM (\o -> o prefix conn)
+    [ createDeviceTable
+    , createIndex True "_devices" "device_token" "token"
+    , createIndex True "_devices" "device_uuid" "uuid"
+    , createIndex False "_devices" "device_username_type" "username, type"
+    , createIndex False "_devices" "device_type" "type"
+    ]

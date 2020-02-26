@@ -14,7 +14,7 @@ import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        settings)
 
 import           Data.String                          (fromString)
-import           Yuntan.Types.HasMySQL                (HasMySQL, HasOtherEnv,
+import           Yuntan.Types.HasPSQL                 (HasOtherEnv, HasPSQL,
                                                        simpleEnv)
 import           Yuntan.Types.Scotty                  (ScottyH)
 import           Yuntan.Utils.RedisCache              (initRedisState)
@@ -77,19 +77,19 @@ program Options { getConfigFile  = confFile
                 } = do
   (Right conf) <- Y.decodeFileEither confFile
 
-  let mysqlConfig  = C.mysqlConfig conf
-      mysqlThreads = C.mysqlHaxlNumThreads mysqlConfig
+  let psqlConfig  = C.psqlConfig conf
+      psqlThreads = C.psqlHaxlNumThreads psqlConfig
       redisConfig  = C.redisConfig conf
       redisThreads = C.redisHaxlNumThreads redisConfig
 
       mqttConfig   = C.mqttConfig conf
 
 
-  pool <- C.genMySQLPool mysqlConfig
+  pool <- C.genPSQLPool psqlConfig
   redis <- C.genRedisConnection redisConfig
 
   let state = stateSet (initRedisState redisThreads $ fromString prefix)
-            $ stateSet (initDeviceState mysqlThreads) stateEmpty
+            $ stateSet (initDeviceState psqlThreads) stateEmpty
 
   let u = simpleEnv pool prefix $ C.mkCache redis
 
@@ -102,12 +102,12 @@ program Options { getConfigFile  = confFile
     runIO u state (updateDeviceMetaByUUID uuid bs)
 
   scottyOptsT opts (runIO u state) (application mqtt)
-  where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u w b -> IO b
+  where runIO :: HasPSQL u => u -> StateStore -> GenHaxl u w b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: (HasMySQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
+application :: (HasPSQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
 application mqtt = do
   middleware logStdout
 

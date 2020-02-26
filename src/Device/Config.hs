@@ -3,10 +3,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Device.Config
-  ( MySQLConfig (..)
+  ( PSQLConfig (..)
   , MqttConfig (..)
   , Config (..)
-  , genMySQLPool
+  , genPSQLPool
   , genRedisConnection
   , RedisConfig (..)
   , Cache
@@ -17,11 +17,11 @@ module Device.Config
 import           Data.Aeson                (FromJSON, parseJSON, withObject,
                                             (.!=), (.:), (.:?))
 import           Database.Redis            (Connection)
-import           Yuntan.Config.MySQLConfig (MySQLConfig (..), genMySQLPool)
+import           Yuntan.Config.PSQLConfig  (PSQLConfig (..), genPSQLPool)
 import           Yuntan.Config.RedisConfig (RedisConfig (..),
                                             defaultRedisConfig,
                                             genRedisConnection)
-import           Yuntan.Types.HasMySQL     (HasOtherEnv, otherEnv)
+import           Yuntan.Types.HasPSQL      (HasOtherEnv, otherEnv)
 
 data MqttConfig = MqttConfig
   { mqttUsername :: String
@@ -39,14 +39,14 @@ instance FromJSON MqttConfig where
     return MqttConfig{..}
 
 data Config = Config
-  { mysqlConfig :: MySQLConfig
+  { psqlConfig  :: PSQLConfig
   , mqttConfig  :: MqttConfig
   , redisConfig :: RedisConfig
   } deriving (Show)
 
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \o -> do
-    mysqlConfig <- o .: "mysql"
+    psqlConfig <- o .: "psql"
     mqttConfig <- o .: "mqtt"
     redisConfig  <- o .:? "redis" .!= defaultRedisConfig
     return Config{..}

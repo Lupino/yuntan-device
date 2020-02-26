@@ -11,22 +11,22 @@ module Device.DataSource
   , initDeviceState
   ) where
 
-import           Data.Hashable            (Hashable (..))
-import           Data.Text                (Text)
-import           Data.Typeable            (Typeable)
-import           Haxl.Core                hiding (env, fetchReq)
+import           Data.Hashable              (Hashable (..))
+import           Data.Text                  (Text)
+import           Data.Typeable              (Typeable)
+import           Haxl.Core                  hiding (env, fetchReq)
 
 import           Device.DataSource.Device
 import           Device.DataSource.Table
 import           Device.Types
-import           Yuntan.Types.HasMySQL    (HasMySQL, mysqlPool, tablePrefix)
-import           Yuntan.Types.ListResult  (From, Size)
-import           Yuntan.Types.OrderBy     (OrderBy)
+import           Yuntan.Types.HasPSQL       (HasPSQL, psqlPool, tablePrefix)
+import           Yuntan.Types.ListResult    (From, Size)
+import           Yuntan.Types.OrderBy       (OrderBy)
 
-import qualified Control.Exception        (SomeException, bracket_, try)
-import           Data.Int                 (Int64)
-import           Data.Pool                (withResource)
-import           Database.MySQL.Simple    (Connection)
+import qualified Control.Exception          (SomeException, bracket_, try)
+import           Data.Int                   (Int64)
+import           Data.Pool                  (withResource)
+import           Database.PostgreSQL.Simple (Connection)
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
@@ -79,11 +79,11 @@ instance StateKey DeviceReq where
 instance DataSourceName DeviceReq where
   dataSourceName _ = "DeviceDataSource"
 
-instance HasMySQL u => DataSource u DeviceReq where
+instance HasPSQL u => DataSource u DeviceReq where
   fetch = doFetch
 
 doFetch
-  :: HasMySQL u
+  :: HasPSQL u
   => State DeviceReq
   -> Flags
   -> u
@@ -95,13 +95,13 @@ doFetch _state _flags _user = AsyncFetch $ \reqs inner -> do
   inner
   mapM_ wait asyncs
 
-fetchAsync :: HasMySQL u => QSem -> u -> BlockedFetch DeviceReq -> IO (Async ())
+fetchAsync :: HasPSQL u => QSem -> u -> BlockedFetch DeviceReq -> IO (Async ())
 fetchAsync sem env req = async $
   Control.Exception.bracket_ (waitQSem sem) (signalQSem sem)
   $ withResource pool
   $ fetchSync req prefix
 
-  where pool   = mysqlPool env
+  where pool   = psqlPool env
         prefix = tablePrefix env
 
 fetchSync :: BlockedFetch DeviceReq -> TablePrefix -> Connection -> IO ()
