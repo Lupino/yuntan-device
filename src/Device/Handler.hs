@@ -71,8 +71,12 @@ createDeviceHandler = do
   username <- param "username"
   token <- param "token"
   tp <- param "type"
-  devid <- lift $ createDevice username token tp
-  json =<< lift (getDevice devid)
+  olddevid <- lift $ getDevIdByToken token
+  case olddevid of
+    Just _ -> errBadRequest "token is already used."
+    Nothing -> do
+      devid <- lift $ createDevice username token tp
+      json =<< lift (getDevice devid)
 
 -- POST /api/devices/:uuidOrToken/token/
 -- POST /api/users/:username/devices/:uuidOrToken/token/

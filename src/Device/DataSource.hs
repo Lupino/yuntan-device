@@ -19,7 +19,8 @@ import           Haxl.Core                  hiding (env, fetchReq)
 import           Device.DataSource.Device
 import           Device.DataSource.Table
 import           Device.Types
-import           Yuntan.Types.HasPSQL       (HasPSQL, psqlPool, tablePrefix)
+import           Yuntan.Types.HasPSQL       (HasPSQL, TablePrefix, psqlPool,
+                                             tablePrefix)
 import           Yuntan.Types.ListResult    (From, Size)
 import           Yuntan.Types.OrderBy       (OrderBy)
 

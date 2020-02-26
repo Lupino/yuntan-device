@@ -91,7 +91,7 @@ program Options { getConfigFile  = confFile
   let state = stateSet (initRedisState redisThreads $ fromString prefix)
             $ stateSet (initDeviceState psqlThreads) stateEmpty
 
-  let u = simpleEnv pool prefix $ C.mkCache redis
+  let u = simpleEnv pool (fromString prefix) $ C.mkCache redis
 
   let opts = def { settings = setPort port
                             $ setHost (Host host) (settings def) }

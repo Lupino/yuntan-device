@@ -12,7 +12,6 @@ module Device.Types
   , Meta
   , Type
   , CreatedAt
-  , TablePrefix
   ) where
 
 import           Database.PostgreSQL.Simple (FromRow)
@@ -22,7 +21,7 @@ import           Data.Aeson                 (FromJSON (..), ToJSON (..),
                                              Value (..), object, withObject,
                                              (.:), (.=))
 import           Data.Int                   (Int64)
-import           Data.Text                  (Text, stripEnd)
+import           Data.Text                  (Text)
 
 type DeviceID    = Int64
 type UserName    = Text
@@ -31,7 +30,6 @@ type UUID        = Text
 type Meta        = Value
 type Type        = Text
 type CreatedAt   = Int64
-type TablePrefix = String
 
 data Device = Device
   { devID        :: DeviceID
@@ -47,11 +45,11 @@ data Device = Device
 instance ToJSON Device where
   toJSON Device {..} = object
     [ "id"         .= devID
-    , "username"   .= stripEnd devUserName
-    , "token"      .= stripEnd devToken
-    , "uuid"       .= stripEnd devUUID
+    , "username"   .= devUserName
+    , "token"      .= devToken
+    , "uuid"       .= devUUID
     , "meta"       .= devMeta
-    , "type"       .= stripEnd devType
+    , "type"       .= devType
     , "created_at" .= devCreatedAt
     ]
 
