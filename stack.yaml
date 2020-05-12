@@ -43,7 +43,7 @@ extra-deps:
 - git: https://github.com/dustin/mqtt-hs.git
   commit: 9e02744795f5b1983eef12a6a27cbc5fedd93146
 - git: https://github.com/Lupino/Haxl.git
-  commit: 2322003e69117200334a2af2e0ab6a12466dee57
+  commit: c4bd7452ff23a51174dca3714f9f4c68454af409
 - git: https://github.com/Lupino/yuntan-common.git
   commit: 21ce1d72c4423a77746aa516c6c30ef24d83c3d7
   subdirs:
