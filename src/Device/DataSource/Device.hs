@@ -52,28 +52,28 @@ getDevIdByUuid :: UUID -> PSQL (Maybe DeviceID)
 getDevIdByUuid uuid = selectOneOnly devices "id" "uuid = ?" (Only uuid)
 
 getDevIdList :: From -> Size -> OrderBy -> PSQL [DeviceID]
-getDevIdList from size o = selectOnly_ devices "id" from size o
+getDevIdList = selectOnly_ devices "id"
 
 countDevice :: PSQL Int64
 countDevice = count_ devices
 
 getDevIdListByName :: UserName -> From -> Size -> OrderBy -> PSQL [DeviceID]
-getDevIdListByName un from size o =
-  selectOnly devices "id" "username = ?" (Only un) from size o
+getDevIdListByName un =
+  selectOnly devices "id" "username = ?" (Only un)
 
 countDeviceByName :: UserName -> PSQL Int64
 countDeviceByName un = count devices "username = ?" (Only un)
 
 getDevIdListByType :: Type -> From -> Size -> OrderBy -> PSQL [DeviceID]
-getDevIdListByType tp from size o =
-  selectOnly devices "id" "type = ?" (Only tp) from size o
+getDevIdListByType tp =
+  selectOnly devices "id" "type = ?" (Only tp)
 
 countDeviceByType :: Type -> PSQL Int64
 countDeviceByType tp = count devices "type = ?" (Only tp)
 
 getDevIdListByNameAndType :: UserName -> Type -> From -> Size -> OrderBy -> PSQL [DeviceID]
-getDevIdListByNameAndType un tp from size o =
-  selectOnly devices "id" "username = ? AND type = ?" (un, tp) from size o
+getDevIdListByNameAndType un tp =
+  selectOnly devices "id" "username = ? AND type = ?" (un, tp)
 
 countDeviceByNameAndType :: UserName -> Type -> PSQL Int64
 countDeviceByNameAndType un tp =
