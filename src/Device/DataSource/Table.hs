@@ -9,16 +9,16 @@ import           Yuntan.Types.HasPSQL (PSQL, createIndex)
 import qualified Yuntan.Types.HasPSQL as PSQL (createTable)
 
 createDeviceTable :: PSQL Int64
-createDeviceTable prefix conn =
+createDeviceTable =
   PSQL.createTable "devices"
     [ "id SERIAL PRIMARY KEY"
-    , "username VARCHAR(20) NOT NULL"
-    , "token VARCHAR(36) NOT NULL"
-    , "uuid VARCHAR(36) NOT NULL"
+    , "username VARCHAR(128) NOT NULL"
+    , "token VARCHAR(128) NOT NULL"
+    , "uuid VARCHAR(128) NOT NULL"
     , "meta JSON NOT NULL"
-    , "type VARCHAR(10) NOT NULL"
+    , "type VARCHAR(128) NOT NULL"
     , "created_at INT NOT NULL"
-    ] prefix conn
+    ]
 
 
 createTable :: PSQL Int64
