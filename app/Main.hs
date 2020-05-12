@@ -29,15 +29,14 @@ import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
 import           Device.MQTT                          (MqttEnv, startMQTT)
 
-import           Data.Semigroup                       ((<>))
 import           Options.Applicative
 
 data Options = Options
-  { getConfigFile  :: String
-  , getHost        :: String
-  , getPort        :: Int
-  , getTablePrefix :: String
-  }
+    { getConfigFile  :: String
+    , getHost        :: String
+    , getPort        :: Int
+    , getTablePrefix :: String
+    }
 
 parser :: Parser Options
 parser = Options

@@ -40,7 +40,6 @@ library
                      , mtl
                      , aeson
                      , http-types
-                     , hex
 
                      , uuid
 
@@ -55,6 +54,7 @@ library
                      , hedis
 
                      , net-mqtt
+                     , network-uri
                      , stm
                      , cache
                      , clock

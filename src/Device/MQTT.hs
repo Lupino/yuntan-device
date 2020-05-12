@@ -20,11 +20,10 @@ import           Data.ByteString.Lazy   (ByteString)
 import           Data.Cache             (Cache (..), newCache)
 import qualified Data.Cache             as Cache (deleteSTM, insert', insertSTM,
                                                   lookupSTM, purgeExpired)
-import           Data.Hex               (hex)
 import           Data.Int               (Int64)
 import           Data.Text              (Text, append, pack, splitOn)
-import           Device.Config          (MqttConfig (..))
 import           Network.MQTT.Client
+import           Network.URI            (URI, uriFragment)
 import           System.Clock           (Clock (Monotonic), TimeSpec (..),
                                          getTime)
 import           System.Entropy         (getEntropy)
@@ -33,11 +32,11 @@ type ResponseCache = Cache Text (Maybe ByteString)
 type RequestCache  = Cache Text (Maybe ByteString)
 
 data MqttEnv = MqttEnv
-  { mKey      :: String -- the service key
-  , mClient   :: TVar (Maybe MQTTClient)
-  , mResCache :: ResponseCache
-  , mReqCache :: RequestCache
-  }
+    { mKey      :: String -- the service key
+    , mClient   :: TVar (Maybe MQTTClient)
+    , mResCache :: ResponseCache
+    , mReqCache :: RequestCache
+    }
 
 -- /:key/:uuid/request/:requestid
 requestTopic :: String -> Text -> Text -> Topic
@@ -55,7 +54,11 @@ attrTopic :: String -> Topic
 attrTopic k = "/" <> pack k <> "/+/attributes"
 
 genHex :: Int -> IO String
-genHex n = hex . B.unpack <$> getEntropy n
+genHex n = concatMap w . B.unpack <$> getEntropy n
+  where w ch = let s = "0123456789ABCDEF"
+                   x = fromEnum ch
+               in [s !! div x 16,s !! mod x 16]
+
 
 -- request env uuid data timeout
 request :: MqttEnv -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
@@ -122,30 +125,27 @@ messageCallback saveAttributes resCache _ topic payload _ =
     (_:_:uuid:"attributes":_) -> saveAttributes uuid payload
     _ -> pure ()
 
-startMQTT :: String -> MqttConfig -> (Text -> ByteString -> IO ())-> IO MqttEnv
-startMQTT key MqttConfig{..} saveAttributes = do
+startMQTT :: String -> URI -> (Text -> ByteString -> IO ())-> IO MqttEnv
+startMQTT key mqttURI saveAttributes = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)
 
-  mc <- newTVarIO $ error "not initial"
+  mc <- newTVarIO Nothing
 
   clientId <- genHex 20
 
   let conf = mqttConfig
-        { _hostname = mqttHost
-        , _port     = mqttPort
-        , _connID   = clientId
-        , _username = Just mqttUsername
-        , _password = Just mqttPassword
-        , _msgCB = SimpleCallback (messageCallback saveAttributes resCache)
+        { _msgCB = SimpleCallback (messageCallback saveAttributes resCache)
+        , _protocol = Protocol311
         }
 
   void $ forkIO $ forever $ do
     r <- try $ do
-      client <- runClient conf
+      client <- connectURI conf mqttURI { uriFragment = clientId }
       atomically $ writeTVar mc $ Just client
       print =<< subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
       print =<< waitForClient client   -- wait for the the client to disconnect
+      atomically $ writeTVar mc Nothing
 
     case r of
       Left (e::SomeException) -> print e
