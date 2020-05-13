@@ -43,9 +43,9 @@ extra-deps:
 - git: https://github.com/dustin/mqtt-hs.git
   commit: 9e02744795f5b1983eef12a6a27cbc5fedd93146
 - git: https://github.com/Lupino/Haxl.git
-  commit: c4bd7452ff23a51174dca3714f9f4c68454af409
+  commit: 839498961e3f7bdc4093aa076d9392bf4f3bc23c
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: 21ce1d72c4423a77746aa516c6c30ef24d83c3d7
+  commit: a74733592cd1e9135468cdc88e507a13cd79b85c
   subdirs:
   - yuntan-common-scotty
   - yuntan-common-scotty-type
