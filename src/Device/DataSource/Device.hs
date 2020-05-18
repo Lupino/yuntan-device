@@ -40,7 +40,7 @@ createDevice un token tp prefix conn = do
   t <- getUnixTime
   uuid <- toText <$> nextRandom
   insertRet devices ["username", "token", "uuid", "meta", "type", "created_at"] "id"
-    (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t) prefix conn
+    (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t) 0 prefix conn
 
 getDevice :: DeviceID -> PSQL (Maybe Device)
 getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
