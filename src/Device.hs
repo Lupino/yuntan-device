@@ -1,6 +1,5 @@
 module Device
-  (
-    module X
+  ( module X
   ) where
 
 import           Device.API        as X

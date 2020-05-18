@@ -1,4 +1,5 @@
-{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -11,20 +12,16 @@ module Device.Types
   , Meta
   , Type
   , CreatedAt
-  , TablePrefix
   ) where
 
-import           Database.MySQL.Simple.QueryResults (QueryResults, convertError,
-                                                     convertResults)
-import           Database.MySQL.Simple.Result       (convert)
+import           Database.PostgreSQL.Simple (FromRow)
+import           GHC.Generics               (Generic)
 
-import           Data.Aeson                         (FromJSON (..), ToJSON (..),
-                                                     Value (..), decodeStrict,
-                                                     object, withObject, (.:),
-                                                     (.=))
-import           Data.Int                           (Int64)
-import           Data.Maybe                         (fromMaybe)
-import           Data.Text                          (Text)
+import           Data.Aeson                 (FromJSON (..), ToJSON (..),
+                                             Value (..), object, withObject,
+                                             (.:), (.=))
+import           Data.Int                   (Int64)
+import           Data.Text                  (Text)
 
 type DeviceID    = Int64
 type UserName    = Text
@@ -33,7 +30,6 @@ type UUID        = Text
 type Meta        = Value
 type Type        = Text
 type CreatedAt   = Int64
-type TablePrefix = String
 
 data Device = Device
   { devID        :: DeviceID
@@ -44,19 +40,7 @@ data Device = Device
   , devType      :: Type
   , devCreatedAt :: CreatedAt
   }
-  deriving (Show)
-
-instance QueryResults Device where
-  convertResults [fa, fb, fc, fd,  _, ff, fh]
-                 [va, vb, vc, vd, ve, vf, vh] = Device {..}
-    where !devID        = convert fa va
-          !devUserName  = convert fb vb
-          !devToken     = convert fc vc
-          !devUUID      = convert fd vd
-          !devMeta      = fromMaybe Null . decodeStrict $ fromMaybe "{}" ve
-          !devType      = convert ff vf
-          !devCreatedAt = convert fh vh
-  convertResults fs vs  = convertError fs vs 2
+  deriving (Show, Generic, FromRow)
 
 instance ToJSON Device where
   toJSON Device {..} = object

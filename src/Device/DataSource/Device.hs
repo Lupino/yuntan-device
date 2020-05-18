@@ -17,119 +17,71 @@ module Device.DataSource.Device
   , removeDevice
   ) where
 
-import           Control.Monad           (void)
-import           Data.Int                (Int64)
-import           Data.Maybe              (listToMaybe)
-import           Data.String             (fromString)
-import           Data.Text               (Text)
+import           Data.Int                   (Int64)
+import           Data.String                (fromString)
+import           Data.Text                  (Text)
 import           Data.UnixTime
-import           Data.UUID               (toText)
-import           Data.UUID.V4            (nextRandom)
-import           Database.MySQL.Simple   (Only (..), execute, insertID, query,
-                                          query_)
+import           Data.UUID                  (toText)
+import           Data.UUID.V4               (nextRandom)
+import           Database.PostgreSQL.Simple (Only (..))
 import           Device.Types
-import           Yuntan.Types.HasMySQL   (MySQL)
-import           Yuntan.Types.ListResult (From, Size)
-import           Yuntan.Types.OrderBy    (OrderBy)
+import           Yuntan.Types.HasPSQL       (PSQL, TableName, count, count_,
+                                             delete, insertRet, selectOne,
+                                             selectOneOnly, selectOnly,
+                                             selectOnly_, update)
+import           Yuntan.Types.ListResult    (From, Size)
+import           Yuntan.Types.OrderBy       (OrderBy)
 
-createDevice :: UserName -> Token -> Type -> MySQL DeviceID
+devices :: TableName
+devices = "devices"
+
+createDevice :: UserName -> Token -> Type -> PSQL DeviceID
 createDevice un token tp prefix conn = do
   t <- getUnixTime
   uuid <- toText <$> nextRandom
-  void $ execute conn insertSQL (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t)
-  fromIntegral <$> insertID conn
+  insertRet devices ["username", "token", "uuid", "meta", "type", "created_at"] "id"
+    (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t) 0 prefix conn
 
-  where insertSQL = fromString $ concat
-          [ "INSERT INTO `", prefix, "_devices` "
-          , "(`username`, `token`, `uuid`, `meta`, `type`, `created_at`)"
-          , " VALUES "
-          , "(?, ?, ?, ?, ?, ?)"
-          ]
+getDevice :: DeviceID -> PSQL (Maybe Device)
+getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
 
-getDevice :: DeviceID -> MySQL (Maybe Device)
-getDevice devid prefix conn = listToMaybe <$> query conn sql (Only devid)
-  where sql = fromString $ concat
-          [ "SELECT * FROM `", prefix, "_devices` "
-          , "WHERE `id` = ?"
-          ]
+getDevIdByToken :: Token -> PSQL (Maybe DeviceID)
+getDevIdByToken token = selectOneOnly devices "id" "token = ?" (Only token)
 
-getDevIdByToken :: Token -> MySQL (Maybe DeviceID)
-getDevIdByToken token prefix conn =
-  fmap fromOnly . listToMaybe <$> query conn sql (Only token)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` WHERE `token`=?"
-          ]
+getDevIdByUuid :: UUID -> PSQL (Maybe DeviceID)
+getDevIdByUuid uuid = selectOneOnly devices "id" "uuid = ?" (Only uuid)
 
-getDevIdByUuid :: UUID -> MySQL (Maybe DeviceID)
-getDevIdByUuid uuid prefix conn =
-  fmap fromOnly . listToMaybe <$> query conn sql (Only uuid)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` WHERE `uuid`=?"
-          ]
+getDevIdList :: From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdList = selectOnly_ devices "id"
 
-getDevIdList :: From -> Size -> OrderBy -> MySQL [DeviceID]
-getDevIdList from size o prefix conn =
-  map fromOnly <$> query conn sql (from, size)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` ", show o, " LIMIT ?,?"
-          ]
+countDevice :: PSQL Int64
+countDevice = count_ devices
 
-countDevice :: MySQL Int64
-countDevice prefix conn = maybe 0 fromOnly . listToMaybe <$> query_ conn sql
-  where sql = fromString $ concat
-          [ "SELECT count(*) FROM `", prefix, "_devices`"
-          ]
+getDevIdListByName :: UserName -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByName un =
+  selectOnly devices "id" "username = ?" (Only un)
 
-getDevIdListByName :: UserName -> From -> Size -> OrderBy -> MySQL [DeviceID]
-getDevIdListByName un from size o prefix conn =
-  map fromOnly <$> query conn sql (un, from, size)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` WHERE `username` = ? ", show o, " LIMIT ?,?"
-          ]
+countDeviceByName :: UserName -> PSQL Int64
+countDeviceByName un = count devices "username = ?" (Only un)
 
-countDeviceByName :: UserName -> MySQL Int64
-countDeviceByName un prefix conn =
-  maybe 0 fromOnly . listToMaybe <$> query conn sql (Only un)
-  where sql = fromString $ concat
-          [ "SELECT count(*) FROM `", prefix, "_devices` WHERE `username` = ?"
-          ]
+getDevIdListByType :: Type -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByType tp =
+  selectOnly devices "id" "type = ?" (Only tp)
 
-getDevIdListByType :: Type -> From -> Size -> OrderBy -> MySQL [DeviceID]
-getDevIdListByType tp from size o prefix conn =
-  map fromOnly <$> query conn sql (tp, from, size)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` WHERE `type` = ? ", show o, " LIMIT ?,?"
-          ]
+countDeviceByType :: Type -> PSQL Int64
+countDeviceByType tp = count devices "type = ?" (Only tp)
 
-countDeviceByType :: Type -> MySQL Int64
-countDeviceByType tp prefix conn =
-  maybe 0 fromOnly . listToMaybe <$> query conn sql (Only tp)
-  where sql = fromString $ concat
-          [ "SELECT count(*) FROM `", prefix, "_devices` WHERE `type` = ?"
-          ]
+getDevIdListByNameAndType :: UserName -> Type -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByNameAndType un tp =
+  selectOnly devices "id" "username = ? AND type = ?" (un, tp)
 
-getDevIdListByNameAndType :: UserName -> Type -> From -> Size -> OrderBy -> MySQL [DeviceID]
-getDevIdListByNameAndType un tp from size o prefix conn =
-  map fromOnly <$> query conn sql (un, tp, from, size)
-  where sql = fromString $ concat
-          [ "SELECT `id` FROM `", prefix, "_devices` WHERE `username` = ? AND `type` = ? ", show o, " LIMIT ?,?"
-          ]
+countDeviceByNameAndType :: UserName -> Type -> PSQL Int64
+countDeviceByNameAndType un tp =
+  count devices "username = ? AND type = ?" (un, tp)
 
-countDeviceByNameAndType :: UserName -> Type -> MySQL Int64
-countDeviceByNameAndType un tp prefix conn =
-  maybe 0 fromOnly . listToMaybe <$> query conn sql (un, tp)
-  where sql = fromString $ concat
-          [ "SELECT count(*) FROM `", prefix, "_devices` WHERE `username` = ? AND `type` = ?"
-          ]
+updateDevice :: DeviceID -> String -> Text -> PSQL Int64
+updateDevice devid field value =
+  update devices [fromString field] "id = ?" (value, devid)
 
-updateDevice :: DeviceID -> String -> Text -> MySQL Int64
-updateDevice devid field value prefix conn = execute conn sql (value, devid)
-  where sql = fromString $ concat
-          [ "UPDATE `", prefix, "_devices` SET `", field , "` = ? WHERE `id`=?"
-          ]
-
-removeDevice :: DeviceID -> MySQL Int64
-removeDevice devid prefix conn = execute conn sql (Only devid)
-  where sql = fromString $ concat
-          [ "DELETE FROM `", prefix, "_devices` WHERE `id`=?"
-          ]
+removeDevice :: DeviceID -> PSQL Int64
+removeDevice devid = delete devices "id = ?" (Only devid)

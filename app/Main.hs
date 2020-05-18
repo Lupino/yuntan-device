@@ -5,16 +5,18 @@ module Main
   ( main
   ) where
 
+import           Control.Monad                        (when)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
+import           System.Exit                          (exitSuccess)
 import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        post, scottyOptsT,
                                                        settings)
 
 import           Data.String                          (fromString)
-import           Yuntan.Types.HasMySQL                (HasMySQL, HasOtherEnv,
+import           Yuntan.Types.HasPSQL                 (HasOtherEnv, HasPSQL,
                                                        simpleEnv)
 import           Yuntan.Types.Scotty                  (ScottyH)
 import           Yuntan.Utils.RedisCache              (initRedisState)
@@ -29,15 +31,15 @@ import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
 import           Device.MQTT                          (MqttEnv, startMQTT)
 
-import           Data.Semigroup                       ((<>))
 import           Options.Applicative
 
 data Options = Options
-  { getConfigFile  :: String
-  , getHost        :: String
-  , getPort        :: Int
-  , getTablePrefix :: String
-  }
+    { getConfigFile  :: String
+    , getHost        :: String
+    , getPort        :: Int
+    , getTablePrefix :: String
+    , getDryRun      :: Bool
+    }
 
 parser :: Parser Options
 parser = Options
@@ -60,6 +62,8 @@ parser = Options
                  <> metavar "TABLE_PREFIX"
                  <> help "table prefix."
                  <> value "test")
+  <*> switch    (long "dry-run"
+                 <> help "only create tables.")
 
 main :: IO ()
 main = execParser opts >>= program
@@ -74,40 +78,43 @@ program Options { getConfigFile  = confFile
                 , getTablePrefix = prefix
                 , getHost        = host
                 , getPort        = port
+                , getDryRun      = dryRun
                 } = do
   (Right conf) <- Y.decodeFileEither confFile
 
-  let mysqlConfig  = C.mysqlConfig conf
-      mysqlThreads = C.mysqlHaxlNumThreads mysqlConfig
+  let psqlConfig  = C.psqlConfig conf
+      psqlThreads = C.psqlHaxlNumThreads psqlConfig
       redisConfig  = C.redisConfig conf
       redisThreads = C.redisHaxlNumThreads redisConfig
 
       mqttConfig   = C.mqttConfig conf
 
 
-  pool <- C.genMySQLPool mysqlConfig
+  pool <- C.genPSQLPool psqlConfig
   redis <- C.genRedisConnection redisConfig
 
   let state = stateSet (initRedisState redisThreads $ fromString prefix)
-            $ stateSet (initDeviceState mysqlThreads) stateEmpty
+            $ stateSet (initDeviceState psqlThreads) stateEmpty
 
-  let u = simpleEnv pool prefix $ C.mkCache redis
+  let u = simpleEnv pool (fromString prefix) $ C.mkCache redis
 
   let opts = def { settings = setPort port
                             $ setHost (Host host) (settings def) }
 
   _ <- runIO u state createTable
 
+  when dryRun exitSuccess
+
   mqtt <- startMQTT prefix mqttConfig $ \uuid bs ->
     runIO u state (updateDeviceMetaByUUID uuid bs)
 
   scottyOptsT opts (runIO u state) (application mqtt)
-  where runIO :: HasMySQL u => u -> StateStore -> GenHaxl u w b -> IO b
+  where runIO :: HasPSQL u => u -> StateStore -> GenHaxl u w b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: (HasMySQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
+application :: (HasPSQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
 application mqtt = do
   middleware logStdout
 

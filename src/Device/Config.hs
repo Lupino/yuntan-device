@@ -3,10 +3,9 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Device.Config
-  ( MySQLConfig (..)
-  , MqttConfig (..)
+  ( PSQLConfig (..)
   , Config (..)
-  , genMySQLPool
+  , genPSQLPool
   , genRedisConnection
   , RedisConfig (..)
   , Cache
@@ -17,39 +16,29 @@ module Device.Config
 import           Data.Aeson                (FromJSON, parseJSON, withObject,
                                             (.!=), (.:), (.:?))
 import           Database.Redis            (Connection)
-import           Yuntan.Config.MySQLConfig (MySQLConfig (..), genMySQLPool)
+import           Network.URI               (URI, parseURI)
+import           Yuntan.Config.PSQLConfig  (PSQLConfig (..), genPSQLPool)
 import           Yuntan.Config.RedisConfig (RedisConfig (..),
                                             defaultRedisConfig,
                                             genRedisConnection)
-import           Yuntan.Types.HasMySQL     (HasOtherEnv, otherEnv)
-
-data MqttConfig = MqttConfig
-  { mqttUsername :: String
-  , mqttPassword :: String
-  , mqttHost     :: String
-  , mqttPort     :: Int
-  } deriving (Show)
-
-instance FromJSON MqttConfig where
-  parseJSON = withObject "MqttConfig" $ \o -> do
-    mqttUsername <- o .: "username"
-    mqttPassword <- o .: "password"
-    mqttHost <- o .: "host"
-    mqttPort <- o .: "port"
-    return MqttConfig{..}
+import           Yuntan.Types.HasPSQL      (HasOtherEnv, otherEnv)
 
 data Config = Config
-  { mysqlConfig :: MySQLConfig
-  , mqttConfig  :: MqttConfig
-  , redisConfig :: RedisConfig
-  } deriving (Show)
+    { psqlConfig  :: PSQLConfig
+    , mqttConfig  :: URI
+    , redisConfig :: RedisConfig
+    }
+    deriving (Show)
 
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \o -> do
-    mysqlConfig <- o .: "mysql"
-    mqttConfig <- o .: "mqtt"
-    redisConfig  <- o .:? "redis" .!= defaultRedisConfig
-    return Config{..}
+    psqlConfig <- o .: "psql"
+    mqtt <- o .: "mqtt"
+    case parseURI mqtt of
+      Nothing  -> fail "invalid mqtt uri"
+      Just mqttConfig -> do
+        redisConfig  <- o .:? "redis" .!= defaultRedisConfig
+        return Config{..}
 
 newtype Cache = Cache
   { redis :: Maybe Connection
