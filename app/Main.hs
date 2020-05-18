@@ -5,10 +5,12 @@ module Main
   ( main
   ) where
 
+import           Control.Monad                        (when)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
+import           System.Exit                          (exitSuccess)
 import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        post, scottyOptsT,
                                                        settings)
@@ -36,6 +38,7 @@ data Options = Options
     , getHost        :: String
     , getPort        :: Int
     , getTablePrefix :: String
+    , getDryRun      :: Bool
     }
 
 parser :: Parser Options
@@ -59,6 +62,8 @@ parser = Options
                  <> metavar "TABLE_PREFIX"
                  <> help "table prefix."
                  <> value "test")
+  <*> switch    (long "dry-run"
+                 <> help "only create tables.")
 
 main :: IO ()
 main = execParser opts >>= program
@@ -73,6 +78,7 @@ program Options { getConfigFile  = confFile
                 , getTablePrefix = prefix
                 , getHost        = host
                 , getPort        = port
+                , getDryRun      = dryRun
                 } = do
   (Right conf) <- Y.decodeFileEither confFile
 
@@ -96,6 +102,8 @@ program Options { getConfigFile  = confFile
                             $ setHost (Host host) (settings def) }
 
   _ <- runIO u state createTable
+
+  when dryRun exitSuccess
 
   mqtt <- startMQTT prefix mqttConfig $ \uuid bs ->
     runIO u state (updateDeviceMetaByUUID uuid bs)
