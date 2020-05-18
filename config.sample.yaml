@@ -24,4 +24,13 @@ psql:
   numThreads: 10
   # numThreads of fetch async for haxl
 
+redis:
+  db: 0
+  host: redis
+  port: 6379
+  enable: false
+  maxConnections: 50
+  idleTime: 30
+  numThreads: 50
+
 mqtt: mqtt://user:passwd@gw.huabot.com:11883
