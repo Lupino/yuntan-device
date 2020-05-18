@@ -141,7 +141,7 @@ startMQTT key mqttURI saveAttributes = do
 
   void $ forkIO $ forever $ do
     r <- try $ do
-      client <- connectURI conf mqttURI { uriFragment = clientId }
+      client <- connectURI conf mqttURI { uriFragment = '#':clientId }
       atomically $ writeTVar mc $ Just client
       print =<< subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
       print =<< waitForClient client   -- wait for the the client to disconnect
