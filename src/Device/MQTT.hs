@@ -10,6 +10,7 @@ module Device.MQTT
   , cacheAble
   ) where
 
+import           System.Log.Logger      (errorM)
 import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Concurrent.STM (TVar, atomically, newTVarIO,
                                          readTVarIO, retry, writeTVar)
@@ -143,12 +144,14 @@ startMQTT key mqttURI saveAttributes = do
     r <- try $ do
       client <- connectURI conf mqttURI { uriFragment = '#':clientId }
       atomically $ writeTVar mc $ Just client
-      print =<< subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
-      print =<< waitForClient client   -- wait for the the client to disconnect
+      subscribed <- subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
+      errorM "Device.MQTT" $ "Subscribed: " ++ show subscribed
+      waited <- waitForClient client   -- wait for the the client to disconnect
+      errorM "Device.MQTT" $ "Waited: " ++ show waited
       atomically $ writeTVar mc Nothing
 
     case r of
-      Left (e::SomeException) -> print e
+      Left (e::SomeException) -> errorM "Device.MQTT" $ "MqttClient Error: " ++ show e
       Right _                 -> pure ()
 
     threadDelay 1000000

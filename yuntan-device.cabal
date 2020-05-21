@@ -61,6 +61,7 @@ library
                      , entropy
 
                      , postgresql-simple
+                     , hslogger
   default-language:    Haskell2010
 
 executable yuntan-device
