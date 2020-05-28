@@ -40,8 +40,8 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- git: https://github.com/dustin/mqtt-hs.git
-  commit: 9e02744795f5b1983eef12a6a27cbc5fedd93146
+- git: https://github.com/Lupino/net-mqtt.git
+  commit: 1a0fd6397756eb0a88cb15c38c268dede02c3bcd
 - git: https://github.com/facebook/Haxl.git
   commit: 2d3731ec7a9959c19f74baa5613ed1a3363ab798
 - git: https://github.com/Lupino/yuntan-common.git
