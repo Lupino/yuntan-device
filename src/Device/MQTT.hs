@@ -10,6 +10,7 @@ module Device.MQTT
   , cacheAble
   ) where
 
+import           System.Log.Logger      (errorM)
 import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Concurrent.STM (TVar, atomically, newTVarIO,
                                          readTVarIO, retry, writeTVar)
@@ -27,7 +28,6 @@ import           Network.URI            (URI, uriFragment)
 import           System.Clock           (Clock (Monotonic), TimeSpec (..),
                                          getTime)
 import           System.Entropy         (getEntropy)
-import           System.Log.Logger      (errorM)
 
 type ResponseCache = Cache Text (Maybe ByteString)
 type RequestCache  = Cache Text (Maybe ByteString)
@@ -68,12 +68,7 @@ request MqttEnv {..} uuid p t = do
 
   let k = responseKey uuid reqid
 
-  now0 <- getTime Monotonic
-  atomically $ do
-    r <- Cache.lookupSTM True k mResCache now0
-    case r of
-      Nothing -> Cache.insertSTM k Nothing mResCache (Just $ TimeSpec t 0)
-      Just _  -> retry
+  Cache.insert' mResCache (Just $ TimeSpec t 0) k Nothing
 
   client <- readTVarIO mClient
   case client of
