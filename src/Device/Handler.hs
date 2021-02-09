@@ -15,27 +15,27 @@ module Device.Handler
   , rpcHandler
   ) where
 
-import           Control.Monad           (void, when)
-import           Control.Monad.IO.Class  (liftIO)
-import           Control.Monad.Reader    (lift)
-import           Data.Aeson              (decode)
-import           Data.Int                (Int64)
-import           Data.Maybe              (catMaybes)
-import qualified Data.Text               as T (null)
-import           Data.UUID               (fromText)
+import           Control.Monad          (void, when)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Reader   (lift)
+import           Data.Aeson             (decode)
+import           Data.Aeson.Helper      (union)
+import           Data.Aeson.Result      (List (..))
+import           Data.Int               (Int64)
+import           Data.Maybe             (catMaybes)
+import qualified Data.Text              as T (null)
+import           Data.UUID              (fromText)
+import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
+                                         OrderBy, Size (..), desc)
 import           Device
-import           Device.Config           (Cache)
-import           Device.MQTT             (MqttEnv, cacheAble, request)
-import           Haxl.Core               (GenHaxl)
-import           Network.HTTP.Types      (status403, status500)
-import           Web.Scotty.Trans        (addHeader, json, param, raw)
-import           Yuntan.Types.HasPSQL    (HasOtherEnv, HasPSQL)
-import           Yuntan.Types.ListResult (From, ListResult (..), Size)
-import           Yuntan.Types.OrderBy    (OrderBy, desc)
-import           Yuntan.Types.Scotty     (ActionH)
-import           Yuntan.Utils.JSON       (unionValue)
-import           Yuntan.Utils.Scotty     (err, errBadRequest, errNotFound, ok,
-                                          okListResult, safeParam)
+import           Device.Config          (Cache)
+import           Device.MQTT            (MqttEnv, cacheAble, request)
+import           Haxl.Core              (GenHaxl)
+import           Network.HTTP.Types     (status403, status500)
+import           Web.Scotty.Haxl        (ActionH)
+import           Web.Scotty.Trans       (addHeader, json, param, raw)
+import           Web.Scotty.Utils       (err, errBadRequest, errNotFound, ok,
+                                         okListResult, safeParam)
 
 -- :uuidOrToken
 apiDevice :: (HasPSQL u, HasOtherEnv Cache u) => ActionH u w (Maybe Device)
@@ -100,7 +100,7 @@ updateDeviceMetaHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH
 updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- param "meta"
   case decode meta of
-    Just ev -> void (lift $ updateDeviceMeta did $ unionValue ev ometa) >> resultOK
+    Just ev -> void (lift $ updateDeviceMeta did $ union ev ometa) >> resultOK
     Nothing -> errBadRequest "meta filed is required."
 
 -- POST /api/devices/:uuidOrToken/username/
@@ -151,14 +151,14 @@ resultDeviceList
   => (From -> Size -> OrderBy -> GenHaxl u w [DeviceID])
   -> GenHaxl u w Int64 -> ActionH u w ()
 resultDeviceList getList count = do
-  from <- safeParam "from" 0
-  size <- safeParam "size" 10
+  from <- From <$> safeParam "from" 0
+  size <- Size <$> safeParam "size" 10
   total <- lift count
   devices <- lift $ mapM getDevice =<< getList from size (desc "id")
 
-  okListResult "devices" ListResult
-    { getFrom   = from
-    , getSize   = size
+  okListResult "devices" List
+    { getFrom   = unFrom from
+    , getSize   = unSize size
     , getTotal  = total
     , getResult = catMaybes devices
     }

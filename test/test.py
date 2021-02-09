@@ -105,10 +105,10 @@ def main():
     check_equal("default", device2['type'])
 
     # test update meta
-    ret = update_meta(token1, {'test1': "test"})
+    ret = update_meta(token1, {'test1': "test你"})
     check_equal(ret, {'result': 'OK'}, 'result')
     device4 = get_device(token1)
-    check_equal(device4['meta']['test1'], "test")
+    check_equal(device4['meta']['test1'], "test你")
 
     ret = update_meta(token1, {'test1': "test1"})
     check_equal(ret, {'result': 'OK'}, 'result')

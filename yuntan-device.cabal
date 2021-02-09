@@ -43,14 +43,12 @@ library
 
                      , uuid
 
-                     , yuntan-common-config-psql
-                     , yuntan-common-list-result
-                     , yuntan-common-order
-                     , yuntan-common-scotty
-                     , yuntan-common-scotty-type
-                     , yuntan-common-json
-                     , yuntan-common-config-redis
-                     , yuntan-common-redis-caching
+                     , psql-utils
+                     , aeson-result
+                     , scotty-utils
+                     , scotty-haxl
+                     , aeson-helper
+                     , rediscaching-haxl
                      , hedis
 
                      , net-mqtt
@@ -78,9 +76,9 @@ executable yuntan-device
                      , wai-extra
                      , data-default-class
                      , yaml
-                     , yuntan-common-config-psql
-                     , yuntan-common-scotty-type
-                     , yuntan-common-redis-caching
+                     , psql-utils
+                     , scotty-haxl
+                     , rediscaching-haxl
                      , net-mqtt
   default-language:    Haskell2010
 

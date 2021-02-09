@@ -16,16 +16,12 @@ module Device.RawAPI
   , removeDevice
   ) where
 
-import           Data.Int                (Int64)
-import           Haxl.Core               (GenHaxl, dataFetch, uncachedRequest)
-import           Yuntan.Types.HasPSQL    (HasPSQL)
-
+import           Data.Int            (Int64)
+import           Data.Text           (Text)
+import           Database.PSQL.Types (From, HasPSQL, OrderBy, Size)
 import           Device.DataSource
 import           Device.Types
-
-import           Data.Text               (Text)
-import           Yuntan.Types.ListResult (From, Size)
-import           Yuntan.Types.OrderBy    (OrderBy)
+import           Haxl.Core           (GenHaxl, dataFetch, uncachedRequest)
 
 createTable :: HasPSQL u => GenHaxl u w Int64
 createTable = uncachedRequest CreateTable

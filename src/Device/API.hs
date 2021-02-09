@@ -17,26 +17,26 @@ module Device.API
   , module X
   ) where
 
-import           Control.Monad           (void)
-import           Data.Aeson              (decode, encode)
-import           Data.ByteString         (ByteString)
-import qualified Data.ByteString.Lazy    as LB (ByteString, toStrict)
-import           Data.Int                (Int64)
-import           Data.String             (fromString)
-import           Data.Text               (Text, unpack)
-import           Data.Text.Encoding      (decodeUtf8)
-import           Device.Config           (Cache, redisEnv)
-import           Device.RawAPI           as X (createTable, getDevIdByToken,
-                                               getDevIdByUuid, getDevIdList,
-                                               getDevIdListByName,
-                                               getDevIdListByNameAndType,
-                                               getDevIdListByType)
-import qualified Device.RawAPI           as RawAPI
+import           Control.Monad        (void)
+import           Data.Aeson           (decode, encode)
+import           Data.Aeson.Helper    (union)
+import           Data.ByteString      (ByteString)
+import qualified Data.ByteString.Lazy as LB (ByteString, toStrict)
+import           Data.Int             (Int64)
+import           Data.String          (fromString)
+import           Data.Text            (Text, unpack)
+import           Data.Text.Encoding   (decodeUtf8)
+import           Database.PSQL.Types  (HasOtherEnv, HasPSQL)
+import           Device.Config        (Cache, redisEnv)
+import           Device.RawAPI        as X (createTable, getDevIdByToken,
+                                            getDevIdByUuid, getDevIdList,
+                                            getDevIdListByName,
+                                            getDevIdListByNameAndType,
+                                            getDevIdListByType)
+import qualified Device.RawAPI        as RawAPI
 import           Device.Types
-import           Haxl.Core               (GenHaxl)
-import           Yuntan.Types.HasPSQL    (HasOtherEnv, HasPSQL)
-import           Yuntan.Utils.JSON       (unionValue)
-import           Yuntan.Utils.RedisCache (cached, cached', remove)
+import           Haxl.Core            (GenHaxl)
+import           Haxl.RedisCache      (cached, cached', remove)
 
 ($>) :: GenHaxl u w a -> GenHaxl u w () -> GenHaxl u w a
 io $> a = do
@@ -161,4 +161,4 @@ updateDeviceMetaByUUID uuid meta = do
         Just Device{devMeta = ometa} ->
           case decode meta of
             Nothing -> pure ()
-            Just ev -> void (updateDeviceMeta did $ unionValue ev ometa)
+            Just ev -> void (updateDeviceMeta did $ union ev ometa)

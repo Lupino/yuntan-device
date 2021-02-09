@@ -11,26 +11,22 @@ module Device.DataSource
   , initDeviceState
   ) where
 
+import           Control.Concurrent.Async
+import           Control.Concurrent.QSem
+import qualified Control.Exception          (SomeException, bracket_, try)
 import           Data.Hashable              (Hashable (..))
+import           Data.Int                   (Int64)
+import           Data.Pool                  (withResource)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
-import           Haxl.Core                  hiding (env, fetchReq)
-
+import           Database.PSQL.Types        (From, HasPSQL, OrderBy, PSQL, Size,
+                                             TablePrefix, psqlPool, runPSQL,
+                                             tablePrefix)
+import           Database.PostgreSQL.Simple (Connection)
 import           Device.DataSource.Device
 import           Device.DataSource.Table
 import           Device.Types
-import           Yuntan.Types.HasPSQL       (HasPSQL, TablePrefix, psqlPool,
-                                             tablePrefix)
-import           Yuntan.Types.ListResult    (From, Size)
-import           Yuntan.Types.OrderBy       (OrderBy)
-
-import qualified Control.Exception          (SomeException, bracket_, try)
-import           Data.Int                   (Int64)
-import           Data.Pool                  (withResource)
-import           Database.PostgreSQL.Simple (Connection)
-
-import           Control.Concurrent.Async
-import           Control.Concurrent.QSem
+import           Haxl.Core                  hiding (env, fetchReq)
 
 -- Data source implementation.
 
@@ -98,21 +94,19 @@ doFetch _state _flags _user = AsyncFetch $ \reqs inner -> do
 
 fetchAsync :: HasPSQL u => QSem -> u -> BlockedFetch DeviceReq -> IO (Async ())
 fetchAsync sem env req = async $
-  Control.Exception.bracket_ (waitQSem sem) (signalQSem sem)
-  $ withResource pool
-  $ fetchSync req prefix
+  Control.Exception.bracket_ (waitQSem sem) (signalQSem sem) $ withResource pool $ fetchSync req prefix
 
   where pool   = psqlPool env
         prefix = tablePrefix env
 
 fetchSync :: BlockedFetch DeviceReq -> TablePrefix -> Connection -> IO ()
 fetchSync (BlockedFetch req rvar) prefix conn = do
-  e <- Control.Exception.try $ fetchReq req prefix conn
+  e <- Control.Exception.try $ runPSQL prefix conn (fetchReq req)
   case e of
     Left ex -> putFailure rvar (ex :: Control.Exception.SomeException)
     Right a -> putSuccess rvar a
 
-fetchReq :: DeviceReq a -> TablePrefix -> Connection -> IO a
+fetchReq :: DeviceReq a -> PSQL a
 fetchReq CreateTable = createTable
 fetchReq (CreateDevice u t tp)                  = createDevice u t tp
 fetchReq (GetDevice i)                          = getDevice i

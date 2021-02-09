@@ -4,9 +4,9 @@ module Device.DataSource.Table
   ( createTable
   ) where
 
-import           Data.Int             (Int64)
-import           Yuntan.Types.HasPSQL (PSQL, createIndex)
-import qualified Yuntan.Types.HasPSQL as PSQL (createTable)
+import           Data.Int            (Int64)
+import           Database.PSQL.Types (PSQL, createIndex)
+import qualified Database.PSQL.Types as PSQL (createTable)
 
 createDeviceTable :: PSQL Int64
 createDeviceTable =
@@ -22,8 +22,8 @@ createDeviceTable =
 
 
 createTable :: PSQL Int64
-createTable prefix conn =
-  sum <$> mapM (\o -> o prefix conn)
+createTable =
+  sum <$> mapM id
     [ createDeviceTable
     , createIndex True "devices" "device_token" ["token"]
     , createIndex True "devices" "device_uuid" ["uuid"]

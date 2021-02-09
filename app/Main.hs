@@ -16,10 +16,10 @@ import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        settings)
 
 import           Data.String                          (fromString)
-import           Yuntan.Types.HasPSQL                 (HasOtherEnv, HasPSQL,
+import           Database.PSQL.Types                  (HasOtherEnv, HasPSQL,
                                                        simpleEnv)
-import           Yuntan.Types.Scotty                  (ScottyH)
-import           Yuntan.Utils.RedisCache              (initRedisState)
+import           Haxl.RedisCache                      (initRedisState)
+import           Web.Scotty.Haxl                      (ScottyH)
 
 import           Device
 import           Device.Handler

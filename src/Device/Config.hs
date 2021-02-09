@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Device.Config
-  ( PSQLConfig (..)
+  ( PSQL (..)
   , Config (..)
   , genPSQLPool
   , genRedisConnection
@@ -13,18 +13,17 @@ module Device.Config
   , redisEnv
   ) where
 
-import           Data.Aeson                (FromJSON, parseJSON, withObject,
-                                            (.!=), (.:), (.:?))
-import           Database.Redis            (Connection)
-import           Network.URI               (URI, parseURI)
-import           Yuntan.Config.PSQLConfig  (PSQLConfig (..), genPSQLPool)
-import           Yuntan.Config.RedisConfig (RedisConfig (..),
-                                            defaultRedisConfig,
-                                            genRedisConnection)
-import           Yuntan.Types.HasPSQL      (HasOtherEnv, otherEnv)
+import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
+                                       (.:), (.:?))
+import           Database.PSQL.Config (PSQL (..), genPSQLPool)
+import           Database.PSQL.Types  (HasOtherEnv, otherEnv)
+import           Database.Redis       (Connection)
+import           Haxl.RedisConfig     (RedisConfig (..), defaultRedisConfig,
+                                       genRedisConnection)
+import           Network.URI          (URI, parseURI)
 
 data Config = Config
-    { psqlConfig  :: PSQLConfig
+    { psqlConfig  :: PSQL
     , mqttConfig  :: URI
     , redisConfig :: RedisConfig
     }

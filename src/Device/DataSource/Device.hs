@@ -17,30 +17,28 @@ module Device.DataSource.Device
   , removeDevice
   ) where
 
-import           Data.Int                   (Int64)
-import           Data.String                (fromString)
-import           Data.Text                  (Text)
+import           Control.Monad.IO.Class (liftIO)
+import           Data.Int               (Int64)
+import           Data.String            (fromString)
+import           Data.Text              (Text)
+import           Data.UUID              (toText)
+import           Data.UUID.V4           (nextRandom)
 import           Data.UnixTime
-import           Data.UUID                  (toText)
-import           Data.UUID.V4               (nextRandom)
-import           Database.PostgreSQL.Simple (Only (..))
+import           Database.PSQL.Types    (From, Only (..), OrderBy, PSQL, Size,
+                                         TableName, count, count_, delete,
+                                         insertRet, selectOne, selectOneOnly,
+                                         selectOnly, selectOnly_, update)
 import           Device.Types
-import           Yuntan.Types.HasPSQL       (PSQL, TableName, count, count_,
-                                             delete, insertRet, selectOne,
-                                             selectOneOnly, selectOnly,
-                                             selectOnly_, update)
-import           Yuntan.Types.ListResult    (From, Size)
-import           Yuntan.Types.OrderBy       (OrderBy)
 
 devices :: TableName
 devices = "devices"
 
 createDevice :: UserName -> Token -> Type -> PSQL DeviceID
-createDevice un token tp prefix conn = do
-  t <- getUnixTime
-  uuid <- toText <$> nextRandom
+createDevice un token tp = do
+  t <- liftIO getUnixTime
+  uuid <- liftIO $ toText <$> nextRandom
   insertRet devices ["username", "token", "uuid", "meta", "type", "created_at"] "id"
-    (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t) 0 prefix conn
+    (un, token, uuid, "{}" :: String, tp, show $ toEpochTime t) 0
 
 getDevice :: DeviceID -> PSQL (Maybe Device)
 getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
