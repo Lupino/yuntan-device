@@ -34,3 +34,5 @@ redis:
   numThreads: 50
 
 mqtt: mqtt://user:passwd@gw.huabot.com:11883
+# allow_keys:
+# - 1234567890abcdef
