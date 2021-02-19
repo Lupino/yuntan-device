@@ -29,7 +29,8 @@ import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
 import           Device
 import           Device.Config          (Cache)
-import           Device.MQTT            (MqttEnv, cacheAble, request)
+import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
+                                         request)
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status403, status500)
 import           Web.Scotty.Haxl        (ActionH)
@@ -164,7 +165,7 @@ resultDeviceList getList count = do
     }
 
 rpcHandler :: HasPSQL u => MqttEnv -> Device -> ActionH u w ()
-rpcHandler mqtt Device{devUUID = uuid} = do
+rpcHandler mqtt_ Device{devUUID = uuid, devUserName = un} = do
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
   cacheHash <- safeParam "cache-hash" ""
@@ -177,3 +178,5 @@ rpcHandler mqtt Device{devUUID = uuid} = do
       isjson <- safeParam "format" ("raw" :: String)
       when (isjson == "json") $ addHeader "Content-Type" "application/json; charset=utf-8"
       raw v
+
+  where mqtt = if un `elem` mAllowKeys mqtt_ then mqtt_ {mKey = un} else mqtt_

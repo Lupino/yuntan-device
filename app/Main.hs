@@ -8,6 +8,7 @@ module Main
 import           Control.Monad                        (when)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
+import           Data.Text                            (pack)
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
 import           System.Exit                          (exitSuccess)
@@ -71,7 +72,7 @@ main = execParser opts >>= program
     opts = info (helper <*> parser)
       ( fullDesc
      <> progDesc "Device micro server"
-     <> header "yuntan-cart - Device micro server" )
+     <> header "yuntan-device - Device micro server" )
 
 program :: Options -> IO ()
 program Options { getConfigFile  = confFile
@@ -88,6 +89,7 @@ program Options { getConfigFile  = confFile
       redisThreads = C.redisHaxlNumThreads redisConfig
 
       mqttConfig   = C.mqttConfig conf
+      allowKeys    = C.allowKeys conf
 
 
   pool <- C.genPSQLPool psqlConfig
@@ -105,7 +107,7 @@ program Options { getConfigFile  = confFile
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT prefix mqttConfig $ \uuid bs ->
+  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \uuid bs ->
     runIO u state (updateDeviceMetaByUUID uuid bs)
 
   scottyOptsT opts (runIO u state) (application mqtt)

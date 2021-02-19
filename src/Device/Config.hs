@@ -15,6 +15,7 @@ module Device.Config
 
 import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
                                        (.:), (.:?))
+import           Data.Text            (Text)
 import           Database.PSQL.Config (PSQL (..), genPSQLPool)
 import           Database.PSQL.Types  (HasOtherEnv, otherEnv)
 import           Database.Redis       (Connection)
@@ -26,6 +27,7 @@ data Config = Config
     { psqlConfig  :: PSQL
     , mqttConfig  :: URI
     , redisConfig :: RedisConfig
+    , allowKeys   :: [Text]
     }
     deriving (Show)
 
@@ -33,11 +35,11 @@ instance FromJSON Config where
   parseJSON = withObject "Config" $ \o -> do
     psqlConfig <- o .: "psql"
     mqtt <- o .: "mqtt"
+    redisConfig  <- o .:? "redis" .!= defaultRedisConfig
+    allowKeys  <- o .:? "allow_keys" .!= []
     case parseURI mqtt of
-      Nothing  -> fail "invalid mqtt uri"
-      Just mqttConfig -> do
-        redisConfig  <- o .:? "redis" .!= defaultRedisConfig
-        return Config{..}
+      Nothing         -> fail "invalid mqtt uri"
+      Just mqttConfig -> return Config{..}
 
 newtype Cache = Cache
   { redis :: Maybe Connection

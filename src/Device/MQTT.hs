@@ -10,7 +10,6 @@ module Device.MQTT
   , cacheAble
   ) where
 
-import           System.Log.Logger      (errorM)
 import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Concurrent.STM (TVar, atomically, newTVarIO,
                                          readTVarIO, retry, writeTVar)
@@ -28,31 +27,33 @@ import           Network.URI            (URI, uriFragment)
 import           System.Clock           (Clock (Monotonic), TimeSpec (..),
                                          getTime)
 import           System.Entropy         (getEntropy)
+import           System.Log.Logger      (errorM)
 
 type ResponseCache = Cache Text (Maybe ByteString)
 type RequestCache  = Cache Text (Maybe ByteString)
 
 data MqttEnv = MqttEnv
-    { mKey      :: String -- the service key
-    , mClient   :: TVar (Maybe MQTTClient)
-    , mResCache :: ResponseCache
-    , mReqCache :: RequestCache
-    }
+  { mKey       :: Text -- the service key
+  , mClient    :: TVar (Maybe MQTTClient)
+  , mResCache  :: ResponseCache
+  , mReqCache  :: RequestCache
+  , mAllowKeys :: [Text]
+  }
 
 -- /:key/:uuid/request/:requestid
-requestTopic :: String -> Text -> Text -> Topic
-requestTopic k uid rid = "/" <> pack k <> "/" <> uid <> "/request/" <> rid
+requestTopic :: Text -> Text -> Text -> Topic
+requestTopic k uid rid = "/" <> k <> "/" <> uid <> "/request/" <> rid
 
 responseKey :: Text -> Text -> Text
 responseKey = append
 
 -- /:key/:uuid/response/:responseid
-responseTopic :: String -> Topic
-responseTopic k = "/" <> pack k <> "/+/response/+"
+responseTopic :: Text -> Topic
+responseTopic k = "/" <> k <> "/+/response/+"
 
 -- /:key/:uuid/attributes
-attrTopic :: String -> Topic
-attrTopic k = "/" <> pack k <> "/+/attributes"
+attrTopic :: Text -> Topic
+attrTopic k = "/" <> k <> "/+/attributes"
 
 genHex :: Int -> IO String
 genHex n = concatMap w . B.unpack <$> getEntropy n
@@ -126,8 +127,8 @@ messageCallback saveAttributes resCache _ topic payload _ =
     (_:_:uuid:"attributes":_) -> saveAttributes uuid payload
     _ -> pure ()
 
-startMQTT :: String -> URI -> (Text -> ByteString -> IO ())-> IO MqttEnv
-startMQTT key mqttURI saveAttributes = do
+startMQTT :: [Text] -> URI -> (Text -> ByteString -> IO ())-> IO MqttEnv
+startMQTT keys mqttURI saveAttributes = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)
 
@@ -144,7 +145,10 @@ startMQTT key mqttURI saveAttributes = do
     r <- try $ do
       client <- connectURI conf mqttURI { uriFragment = '#':clientId }
       atomically $ writeTVar mc $ Just client
-      subscribed <- subscribe client [(responseTopic key, subOptions), (attrTopic key, subOptions)] []
+      subscribed <- subscribe client (concat
+        [ map (\k -> (responseTopic k, subOptions)) keys
+        , map (\k -> (attrTopic k, subOptions)) keys
+        ]) []
       errorM "Device.MQTT" $ "Subscribed: " ++ show subscribed
       waited <- waitForClient client   -- wait for the the client to disconnect
       errorM "Device.MQTT" $ "Waited: " ++ show waited
@@ -162,8 +166,9 @@ startMQTT key mqttURI saveAttributes = do
     threadDelay 1000000
 
   pure MqttEnv
-    { mKey = key
+    { mKey = head keys
     , mClient = mc
     , mResCache = resCache
     , mReqCache = reqCache
+    , mAllowKeys = keys
     }
