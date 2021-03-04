@@ -146,9 +146,9 @@ application mqtt = do
   get "/api/users/:username/devices/" getDeviceListByNameHandler
 
   delete "/api/devices/:uuidOrToken/" $
-    requireDevice removeDeviceHandler
+    requireDevice (removeDeviceHandler mqtt)
   delete "/api/users/:username/devices/:uuidOrToken/" $
-    requireDevice $ requireOwner removeDeviceHandler
+    requireDevice $ requireOwner (removeDeviceHandler mqtt)
 
   get "/api/devices/:uuidOrToken/" $
     requireDevice getDeviceHandler

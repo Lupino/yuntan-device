@@ -30,7 +30,7 @@ import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
 import           Device
 import           Device.Config          (Cache)
 import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
-                                         request)
+                                         request, sendDrop)
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status403, status500)
 import           Web.Scotty.Haxl        (ActionH)
@@ -130,10 +130,14 @@ getDeviceListByNameHandler = do
 
 -- DELETE /api/devices/:uuidOrToken/
 -- DELETE /api/users/:username/devices/:uuidOrToken/
-removeDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
-removeDeviceHandler Device{devID = did} = do
+removeDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => MqttEnv -> Device -> ActionH u w ()
+removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devUserName = un} = do
   void $ lift $ removeDevice did
+  liftIO $ sendDrop mqtt uuid
   resultOK
+
+  where mqtt = if un `elem` mAllowKeys mqtt_ then mqtt_ {mKey = un} else mqtt_
+
 
 -- GET /api/devices/:uuidOrToken/
 -- GET /api/users/:username/devices/:uuidOrToken/

@@ -7,6 +7,7 @@ module Device.MQTT
   ( startMQTT
   , MqttEnv (..)
   , request
+  , sendDrop
   , cacheAble
   ) where
 
@@ -55,6 +56,10 @@ responseTopic k = "/" <> k <> "/+/response/+"
 attrTopic :: Text -> Topic
 attrTopic k = "/" <> k <> "/+/attributes"
 
+-- /:key/:uuid/drop
+dropTopic :: Text -> Text -> Topic
+dropTopic k uid  = "/" <> k <> "/" <> uid <> "/drop"
+
 genHex :: Int -> IO String
 genHex n = concatMap w . B.unpack <$> getEntropy n
   where w ch = let s = "0123456789ABCDEF"
@@ -87,6 +92,15 @@ request MqttEnv {..} uuid p t = do
           Just v -> do
             Cache.deleteSTM k mResCache
             pure v
+
+
+-- sendDrop env uuid
+sendDrop :: MqttEnv -> Text -> IO ()
+sendDrop MqttEnv {..} uuid = do
+  client <- readTVarIO mClient
+  case client of
+    Nothing -> return ()
+    Just c  -> publish c (dropTopic mKey uuid) "" False
 
 cacheAble :: MqttEnv -> Text -> Int64 -> IO (Maybe ByteString) -> IO (Maybe ByteString)
 cacheAble MqttEnv {..} h t io = do
