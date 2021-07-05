@@ -1,54 +1,43 @@
-# Run using:
-#
-#     $(nix-build --no-link -A fullBuildScript)
-{
-  stack2nix-output-path ? "custom-stack2nix-output.nix",
-}:
+{ compiler-nix-name ? "ghc8105" }:
 let
-  cabalPackageName = "yuntan-device";
-  compiler = "ghc865"; # matching stack.yaml
+  # Read in the Niv sources
+  sources = import ./nix/sources.nix {};
+  # If ./nix/sources.nix file is not found run:
+  #   niv init
+  #   niv add input-output-hk/haskell.nix -n haskellNix
 
-  # Pin static-haskell-nix version.
-  static-haskell-nix =
-      # Update this hash to use a different `static-haskell-nix` version:
-      fetchTarball https://github.com/nh2/static-haskell-nix/archive/d1b20f35ec7d3761e59bd323bbe0cca23b3dfc82.tar.gz;
+  # Fetch the haskell.nix commit we have pinned with Niv
+  haskellNix = import sources.haskellNix { };
+  # If haskellNix is not found run:
+  #   niv add input-output-hk/haskell.nix -n haskellNix
 
-  # Pin nixpkgs version
-  # By default to the one `static-haskell-nix` provides, but you may also give
-  # your own as long as it has the necessary patches, using e.g.
-  pkgs = import "${static-haskell-nix}/nixpkgs.nix";
-
-  stack2nix-script = import "${static-haskell-nix}/static-stack2nix-builder/stack2nix-script.nix" {
-    inherit pkgs;
-    stack-project-dir = toString ./.; # where stack.yaml is
-    hackageSnapshot = "2020-03-20T00:00:00Z"; # pins e.g. extra-deps without hashes or revisions
-  };
-
-  static-stack2nix-builder = import "${static-haskell-nix}/static-stack2nix-builder/default.nix" {
-    normalPkgs = pkgs;
-    inherit cabalPackageName compiler stack2nix-output-path;
-    # disableOptimization = true; # for compile speed
-  };
-
-  # Full invocation, including pinning `nix` version itself.
-  fullBuildScript = pkgs.writeScript "stack2nix-and-build-script.sh" ''
-    #!/usr/bin/env bash
-    set -eu -o pipefail
-    STACK2NIX_OUTPUT_PATH=$(${stack2nix-script})
-    export NIX_PATH=nixpkgs=${pkgs.path}
-    ${pkgs.nix}/bin/nix-build --no-link -A static_package --argstr stack2nix-output-path "$STACK2NIX_OUTPUT_PATH" "$@"
-  '';
-
-  static_package =
-    static-stack2nix-builder.haskell-static-nix_output.pkgs.staticHaskellHelpers.addStaticLinkerFlagsWithPkgconfig
-      static-stack2nix-builder.static_package
-      (with static-stack2nix-builder.haskell-static-nix_output.pkgs; [ openssl postgresql ])
-      "--libs libpq";
-in
-  {
-    inherit static_package;
-    inherit fullBuildScript;
-    # For debugging:
-    inherit stack2nix-script;
-    inherit static-stack2nix-builder;
+  # Import nixpkgs and pass the haskell.nix provided nixpkgsArgs
+  pkgs = import
+    # haskell.nix provides access to the nixpkgs pins which are used by our CI,
+    # hence you will be more likely to get cache hits when using these.
+    # But you can also just use your own, e.g. '<nixpkgs>'.
+    sources.nixpkgs
+    # These arguments passed to nixpkgs, include some patches and also
+    # the haskell.nix functionality itself as an overlay.
+    haskellNix.nixpkgsArgs;
+in pkgs.haskell-nix.cabalProject {
+    # 'cleanGit' cleans a source directory based on the files known by git
+    src = pkgs.haskell-nix.haskellLib.cleanGit {
+      src = ./.;
+      name = "yuntan-device";
+    };
+    index-state = "2021-06-30T00:00:00Z";
+    index-sha256 = "0f6213f13984148dbf6ad865576e3a9ebb330751b30b49a7f6e02697865cbb01";
+    plan-sha256 = if compiler-nix-name == "ghc8105" then "0xx3vigjs1pdaalbw1fxj4zhwiwr9g2rb377b0cpa7y028zjkg9b" else null;
+    materialized = if compiler-nix-name == "ghc8105" then ./nix/materialized else null;
+    # Specify the GHC version to use.
+    compiler-nix-name = compiler-nix-name;
+    modules = [(
+       {pkgs, ...}: {
+         packages.yuntan-device.configureFlags = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isMusl [
+           "--ghc-option=-optl=-lssl"
+           "--ghc-option=-optl=-lcrypto"
+           "--ghc-option=-optl=-L${pkgs.openssl.out}/lib"
+         ];
+      })];
   }
