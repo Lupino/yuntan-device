@@ -107,8 +107,8 @@ program Options { getConfigFile  = confFile
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \uuid bs ->
-    runIO u state (updateDeviceMetaByUUID uuid bs)
+  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \uuid bs force ->
+    runIO u state (updateDeviceMetaByUUID uuid bs force)
 
   scottyOptsT opts (runIO u state) (application mqtt)
   where runIO :: HasPSQL u => u -> StateStore -> GenHaxl u w b -> IO b

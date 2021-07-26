@@ -52,6 +52,14 @@ responseKey = append
 responseTopic :: Text -> Topic
 responseTopic k = "/" <> k <> "/+/response/+"
 
+-- /:key/:uuid/telemetry
+telemetryTopic :: Text -> Topic
+telemetryTopic k = "/" <> k <> "/+/telemetry"
+
+-- /:key/:uuid/ping
+pingTopic :: Text -> Topic
+pingTopic k = "/" <> k <> "/+/ping"
+
 -- /:key/:uuid/attributes
 attrTopic :: Text -> Topic
 attrTopic k = "/" <> k <> "/+/attributes"
@@ -124,7 +132,7 @@ cacheAble MqttEnv {..} h t io = do
           Cache.insert' mReqCache (Just $ TimeSpec t 0) h (Just vo)
           return $ Just vo
 
-messageCallback :: (Text -> ByteString -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
+messageCallback :: (Text -> ByteString -> Bool -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
 messageCallback saveAttributes resCache _ topic payload _ =
   case splitOn "/" topic of
     (_:_:uuid:"response":reqid:_) -> do
@@ -133,15 +141,20 @@ messageCallback saveAttributes resCache _ topic payload _ =
       let t = case defaultExpiration resCache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
+      saveAttributes uuid payload False
       atomically $ do
         r <- Cache.lookupSTM True k resCache now
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:_:uuid:"attributes":_) -> saveAttributes uuid payload
+    (_:_:uuid:"attributes":_) -> saveAttributes uuid payload True
+    (_:_:uuid:"telemetry":_)  -> saveAttributes uuid online True
+    (_:_:uuid:"ping":_)       -> saveAttributes uuid online True
     _ -> pure ()
 
-startMQTT :: [Text] -> URI -> (Text -> ByteString -> IO ())-> IO MqttEnv
+  where online = "{\"state\"=\"online\"}"
+
+startMQTT :: [Text] -> URI -> (Text -> ByteString -> Bool -> IO ())-> IO MqttEnv
 startMQTT keys mqttURI saveAttributes = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)
@@ -162,6 +175,8 @@ startMQTT keys mqttURI saveAttributes = do
       subscribed <- subscribe client (concat
         [ map (\k -> (responseTopic k, subOptions)) keys
         , map (\k -> (attrTopic k, subOptions)) keys
+        , map (\k -> (telemetryTopic k, subOptions)) keys
+        , map (\k -> (pingTopic k, subOptions)) keys
         ]) []
       errorM "Device.MQTT" $ "Subscribed: " ++ show subscribed
       waited <- waitForClient client   -- wait for the the client to disconnect

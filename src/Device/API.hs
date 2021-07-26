@@ -1,5 +1,6 @@
-{-# LANGUAGE BangPatterns     #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Device.API
   ( createDevice
@@ -18,10 +19,12 @@ module Device.API
   ) where
 
 import           Control.Monad        (void)
-import           Data.Aeson           (decode, encode)
+import           Data.Aeson           (Value (Object), decode, encode, object,
+                                       (.=))
 import           Data.Aeson.Helper    (union)
 import           Data.ByteString      (ByteString)
 import qualified Data.ByteString.Lazy as LB (ByteString, toStrict)
+import qualified Data.HashMap.Strict  as HM (filterWithKey, member)
 import           Data.Int             (Int64)
 import           Data.String          (fromString)
 import           Data.Text            (Text, unpack)
@@ -149,8 +152,12 @@ removeDevice devid = do
       $ unCacheCount "device"
       $ RawAPI.removeDevice devid
 
-updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> GenHaxl u w ()
-updateDeviceMetaByUUID uuid meta = do
+filterMeta :: Bool -> Value -> Value -> Value
+filterMeta True (Object nv) (Object ov) = Object $ HM.filterWithKey (\k _ -> HM.member k ov) nv
+filterMeta _ nv _ = nv
+
+updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> Bool -> GenHaxl u w ()
+updateDeviceMetaByUUID uuid meta force = do
   devid <- getDevIdByUuid uuid
   case devid of
     Nothing -> pure ()
@@ -160,5 +167,13 @@ updateDeviceMetaByUUID uuid meta = do
         Nothing -> pure ()
         Just Device{devMeta = ometa} ->
           case decode meta of
-            Nothing -> pure ()
-            Just ev -> void (updateDeviceMeta did $ union ev ometa)
+            Just (Object ev) ->
+              if HM.member "err" ev then pure ()
+                                    else do
+                let nv = union (filterMeta force (Object ev) ometa)
+                       $ union online ometa
+                if nv == ometa then pure ()
+                               else void $ updateDeviceMeta did nv
+            _ -> pure ()
+
+  where online = object [ "state" .= ("online" :: String) ]
