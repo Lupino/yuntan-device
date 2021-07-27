@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -14,14 +12,12 @@ module Device.Types
   , CreatedAt
   ) where
 
-import           Database.PostgreSQL.Simple (FromRow)
-import           GHC.Generics               (Generic)
-
-import           Data.Aeson                 (FromJSON (..), ToJSON (..),
-                                             Value (..), object, withObject,
-                                             (.:), (.=))
-import           Data.Int                   (Int64)
-import           Data.Text                  (Text)
+import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
+                                      object, withObject, (.:), (.=))
+import           Data.Int            (Int64)
+import           Data.Maybe          (fromMaybe)
+import           Data.Text           (Text)
+import           Database.PSQL.Types (FromRow (..), field)
 
 type DeviceID    = Int64
 type UserName    = Text
@@ -38,9 +34,24 @@ data Device = Device
   , devUUID      :: UUID
   , devMeta      :: Value
   , devType      :: Type
+  , devPingAt    :: CreatedAt
   , devCreatedAt :: CreatedAt
   }
-  deriving (Show, Generic, FromRow)
+  deriving (Show)
+
+instance FromRow Device where
+  fromRow = do
+    devID <- field
+    devUserName <- field
+    devToken <- field
+    devUUID <- field
+    devMeta <- fromMaybe Null <$> field
+    devType <- field
+    devCreatedAt <- field
+    return Device
+      { devPingAt = 0
+      , ..
+      }
 
 instance ToJSON Device where
   toJSON Device {..} = object
@@ -50,6 +61,7 @@ instance ToJSON Device where
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
     , "type"       .= devType
+    , "ping_at"    .= devPingAt
     , "created_at" .= devCreatedAt
     ]
 
@@ -61,5 +73,6 @@ instance FromJSON Device where
     devUUID      <- o .: "uuid"
     devMeta      <- o .: "meta"
     devType      <- o .: "type"
+    devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
     return Device{..}

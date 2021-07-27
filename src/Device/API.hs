@@ -55,8 +55,8 @@ io $> a = do
   !_ <- a
   return r
 
-genLastPingKey :: DeviceID -> ByteString
-genLastPingKey devid = fromString $ "device_last_ping:" ++ show devid
+genPingAtKey :: DeviceID -> ByteString
+genPingAtKey devid = fromString $ "device_last_ping:" ++ show devid
 
 genDeviceKey :: DeviceID -> ByteString
 genDeviceKey devid = fromString $ "device:" ++ show devid
@@ -97,7 +97,13 @@ createDevice un t tp =
   $ RawAPI.createDevice un t tp
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w (Maybe Device)
-getDevice devid = cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
+getDevice devid = do
+  mdev <- cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
+  case mdev of
+    Nothing -> pure Nothing
+    Just dev -> do
+      pingAt <- getPingAt devid
+      pure $ Just dev { devPingAt = pingAt }
 
 countDevice :: (HasPSQL u, HasOtherEnv Cache u) => GenHaxl u w Int64
 countDevice = cached' redisEnv (genCountKey "device") RawAPI.countDevice
@@ -190,18 +196,18 @@ updateDeviceMetaByUUID uuid meta force = do
                     Nothing -> pure ()
                     Just conn -> liftIO $ do
                       t <- liftIO $ show . toEpochTime <$> getUnixTime
-                      void $ runRedis conn $ set (genLastPingKey did) $ fromString t
+                      void $ runRedis conn $ set (genPingAtKey did) $ fromString t
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
 
-getLastPing :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
-getLastPing did = do
+getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
+getPingAt did = do
   mconn <- redisEnv <$> env userEnv
   case mconn of
     Nothing -> pure 0
     Just conn -> liftIO $ do
-      r <- runRedis conn $ get (genLastPingKey did)
+      r <- runRedis conn $ get (genPingAtKey did)
       case r of
         Right (Just t) -> pure . fromMaybe 0 . readMaybe $ B.unpack t
         _              -> pure 0
