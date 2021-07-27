@@ -28,6 +28,7 @@ import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Lazy   as LB (ByteString, toStrict)
 import qualified Data.HashMap.Strict    as HM (filterWithKey, member)
 import           Data.Int               (Int64)
+import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
 import           Data.Text              (Text, unpack)
 import           Data.Text.Encoding     (decodeUtf8)
@@ -42,7 +43,7 @@ import           Device.RawAPI          as X (createTable, getDevIdByToken,
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', remove)
+import           Haxl.RedisCache        (cached, cached', get, remove, set)
 import           Web.Scotty.Haxl        ()
 
 ($>) :: GenHaxl u w a -> GenHaxl u w () -> GenHaxl u w a
@@ -187,14 +188,11 @@ updateDeviceMetaByUUID uuid meta force = do
                                                 else union online ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
                 unless (HM.member "addr" ev || HM.member "state" ev) $ do
-                  !_ <- remove redisEnv (genPingAtKey did)
-                  void
-                    $ cached' redisEnv (genPingAtKey did)
-                    $ liftIO
-                    $ toEpochTime <$> getUnixTime
+                  t <- liftIO $ read . show . toEpochTime <$> getUnixTime
+                  void $ set redisEnv (genPingAtKey did) (t :: Int64)
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
 
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
-getPingAt did = cached' redisEnv (genPingAtKey did) $ pure 0
+getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
