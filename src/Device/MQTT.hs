@@ -152,7 +152,7 @@ messageCallback saveAttributes resCache _ topic payload _ =
     (_:_:uuid:"ping":_)       -> saveAttributes uuid online True
     _ -> pure ()
 
-  where online = "{\"state\"=\"online\"}"
+  where online = "{\"state\": \"online\"}"
 
 startMQTT :: [Text] -> URI -> (Text -> ByteString -> Bool -> IO ())-> IO MqttEnv
 startMQTT keys mqttURI saveAttributes = do
