@@ -54,9 +54,6 @@ io $> a = do
 genPingAtKey :: DeviceID -> ByteString
 genPingAtKey devid = fromString $ "ping_at:" ++ show devid
 
-unCachePingAt:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
-unCachePingAt devid io = io $> remove redisEnv (genPingAtKey devid)
-
 genDeviceKey :: DeviceID -> ByteString
 genDeviceKey devid = fromString $ "device:" ++ show devid
 
@@ -189,12 +186,12 @@ updateDeviceMetaByUUID uuid meta force = do
                        $ if HM.member "addr" ev then ometa
                                                 else union online ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
-                unless (HM.member "addr" ev || HM.member "state" ev)
-                  $ void
-                  $ unCachePingAt did
-                  $ cached' redisEnv (genPingAtKey did)
-                  $ liftIO
-                  $ toEpochTime <$> getUnixTime
+                unless (HM.member "addr" ev || HM.member "state" ev) $ do
+                  !_ <- remove redisEnv (genPingAtKey did)
+                  void
+                    $ cached' redisEnv (genPingAtKey did)
+                    $ liftIO
+                    $ toEpochTime <$> getUnixTime
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
