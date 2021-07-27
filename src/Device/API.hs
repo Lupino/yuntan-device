@@ -18,7 +18,7 @@ module Device.API
   , module X
   ) where
 
-import           Control.Monad        (void)
+import           Control.Monad        (unless, void)
 import           Data.Aeson           (Value (Object), decode, encode, object,
                                        (.=))
 import           Data.Aeson.Helper    (union)
@@ -168,12 +168,11 @@ updateDeviceMetaByUUID uuid meta force = do
         Just Device{devMeta = ometa} ->
           case decode meta of
             Just (Object ev) ->
-              if HM.member "err" ev then pure ()
-                                    else do
+              unless (HM.member "err" ev) $ do
                 let nv = union (filterMeta force (Object ev) ometa)
-                       $ union online ometa
-                if nv == ometa then pure ()
-                               else void $ updateDeviceMeta did nv
+                       $ if HM.member "addr" ev then ometa
+                                                else union online ometa
+                unless (nv == ometa) $ void $ updateDeviceMeta did nv
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
