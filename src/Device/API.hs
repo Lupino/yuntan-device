@@ -56,7 +56,7 @@ io $> a = do
   return r
 
 genPingAtKey :: DeviceID -> ByteString
-genPingAtKey devid = fromString $ "device_last_ping:" ++ show devid
+genPingAtKey devid = fromString $ "ping_at:" ++ show devid
 
 genDeviceKey :: DeviceID -> ByteString
 genDeviceKey devid = fromString $ "device:" ++ show devid
