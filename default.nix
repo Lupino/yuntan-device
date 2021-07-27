@@ -28,7 +28,7 @@ in pkgs.haskell-nix.cabalProject {
     };
     index-state = "2021-06-30T00:00:00Z";
     index-sha256 = "0f6213f13984148dbf6ad865576e3a9ebb330751b30b49a7f6e02697865cbb01";
-    plan-sha256 = if compiler-nix-name == "ghc8105" then "0xx3vigjs1pdaalbw1fxj4zhwiwr9g2rb377b0cpa7y028zjkg9b" else null;
+    plan-sha256 = if compiler-nix-name == "ghc8105" then "1sgny1sbdljhnnhm9v2gipinni9wnl2c0hzg6hagbc1glwdfh7sd" else null;
     materialized = if compiler-nix-name == "ghc8105" then ./nix/materialized else null;
     # Specify the GHC version to use.
     compiler-nix-name = compiler-nix-name;

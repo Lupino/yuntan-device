@@ -61,6 +61,7 @@
           (hsPkgs."entropy" or (errorHandler.buildDepError "entropy"))
           (hsPkgs."postgresql-simple" or (errorHandler.buildDepError "postgresql-simple"))
           (hsPkgs."hslogger" or (errorHandler.buildDepError "hslogger"))
+          (hsPkgs."unordered-containers" or (errorHandler.buildDepError "unordered-containers"))
           ];
         buildable = true;
         modules = [

@@ -232,7 +232,6 @@
         "nats".flags.hashable = true;
         "pem".revision = (((hackage."pem")."0.2.4").revisions).default;
         "colour".revision = (((hackage."colour")."2.3.5").revisions).default;
-        "rediscaching-haxl".revision = (((hackage."rediscaching-haxl")."0.1.0.0").revisions).default;
         "hashable".revision = (((hackage."hashable")."1.3.0.0").revisions).default;
         "hashable".flags.sse2 = true;
         "hashable".flags.sse41 = false;
@@ -319,6 +318,7 @@
     {
       packages = {
         yuntan-device = ./.plan.nix/yuntan-device.nix;
+        rediscaching-haxl = ./.plan.nix/rediscaching-haxl.nix;
         haxl = ./.plan.nix/haxl.nix;
         };
       };
@@ -327,6 +327,7 @@
       {
         packages = {
           "yuntan-device" = { flags = {}; };
+          "rediscaching-haxl" = { flags = {}; };
           "haxl" = { flags = { "bench" = lib.mkOverride 900 false; }; };
           };
         })
