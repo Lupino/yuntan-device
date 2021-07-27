@@ -18,34 +18,45 @@ module Device.API
   , module X
   ) where
 
-import           Control.Monad        (unless, void)
-import           Data.Aeson           (Value (Object), decode, encode, object,
-                                       (.=))
-import           Data.Aeson.Helper    (union)
-import           Data.ByteString      (ByteString)
-import qualified Data.ByteString.Lazy as LB (ByteString, toStrict)
-import qualified Data.HashMap.Strict  as HM (filterWithKey, member)
-import           Data.Int             (Int64)
-import           Data.String          (fromString)
-import           Data.Text            (Text, unpack)
-import           Data.Text.Encoding   (decodeUtf8)
-import           Database.PSQL.Types  (HasOtherEnv, HasPSQL)
-import           Device.Config        (Cache, redisEnv)
-import           Device.RawAPI        as X (createTable, getDevIdByToken,
-                                            getDevIdByUuid, getDevIdList,
-                                            getDevIdListByName,
-                                            getDevIdListByNameAndType,
-                                            getDevIdListByType)
-import qualified Device.RawAPI        as RawAPI
+
+import           Control.Monad          (unless, void)
+import           Control.Monad.IO.Class (liftIO)
+import           Data.Aeson             (Value (Object), decode, encode, object,
+                                         (.=))
+import           Data.Aeson.Helper      (union)
+import           Data.ByteString        (ByteString)
+import qualified Data.ByteString.Char8  as B (unpack)
+import qualified Data.ByteString.Lazy   as LB (ByteString, toStrict)
+import qualified Data.HashMap.Strict    as HM (filterWithKey, member)
+import           Data.Int               (Int64)
+import           Data.Maybe             (fromMaybe)
+import           Data.String            (fromString)
+import           Data.Text              (Text, unpack)
+import           Data.Text.Encoding     (decodeUtf8)
+import           Data.UnixTime
+import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
+import           Database.Redis         (get, runRedis, set)
+import           Device.Config          (Cache, redisEnv)
+import           Device.RawAPI          as X (createTable, getDevIdByToken,
+                                              getDevIdByUuid, getDevIdList,
+                                              getDevIdListByName,
+                                              getDevIdListByNameAndType,
+                                              getDevIdListByType)
+import qualified Device.RawAPI          as RawAPI
 import           Device.Types
-import           Haxl.Core            (GenHaxl)
-import           Haxl.RedisCache      (cached, cached', remove)
+import           Haxl.Core              (GenHaxl, env, userEnv)
+import           Haxl.RedisCache        (cached, cached', remove)
+import           Text.Read              (readMaybe)
+import           Web.Scotty.Haxl        ()
 
 ($>) :: GenHaxl u w a -> GenHaxl u w () -> GenHaxl u w a
 io $> a = do
   !r <- io
   !_ <- a
   return r
+
+genLastPingKey :: DeviceID -> ByteString
+genLastPingKey devid = fromString $ "device_last_ping:" ++ show devid
 
 genDeviceKey :: DeviceID -> ByteString
 genDeviceKey devid = fromString $ "device:" ++ show devid
@@ -173,6 +184,24 @@ updateDeviceMetaByUUID uuid meta force = do
                        $ if HM.member "addr" ev then ometa
                                                 else union online ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
+                unless (HM.member "addr" ev || HM.member "state" ev) $ do
+                  mconn <- redisEnv <$> env userEnv
+                  case mconn of
+                    Nothing -> pure ()
+                    Just conn -> liftIO $ do
+                      t <- liftIO $ show . toEpochTime <$> getUnixTime
+                      void $ runRedis conn $ set (genLastPingKey did) $ fromString t
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
+
+getLastPing :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
+getLastPing did = do
+  mconn <- redisEnv <$> env userEnv
+  case mconn of
+    Nothing -> pure 0
+    Just conn -> liftIO $ do
+      r <- runRedis conn $ get (genLastPingKey did)
+      case r of
+        Right (Just t) -> pure . fromMaybe 0 . readMaybe $ B.unpack t
+        _              -> pure 0
