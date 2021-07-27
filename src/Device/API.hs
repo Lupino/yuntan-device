@@ -187,7 +187,7 @@ updateDeviceMetaByUUID uuid meta force = do
                        $ if HM.member "addr" ev then ometa
                                                 else union online ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
-                unless (HM.member "addr" ev || HM.member "state" ev) $ do
+                unless (HM.member "addr" ev) $ do
                   t <- liftIO $ read . show . toEpochTime <$> getUnixTime
                   void $ set redisEnv (genPingAtKey did) (t :: Int64)
             _ -> pure ()
