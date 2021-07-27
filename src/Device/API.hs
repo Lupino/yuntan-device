@@ -167,7 +167,7 @@ removeDevice devid = do
       $ RawAPI.removeDevice devid
 
 filterMeta :: Bool -> Value -> Value -> Value
-filterMeta True (Object nv) (Object ov) = Object $ HM.filterWithKey (\k _ -> HM.member k ov) nv
+filterMeta False (Object nv) (Object ov) = Object $ HM.filterWithKey (\k _ -> HM.member k ov) nv
 filterMeta _ nv _ = nv
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> Bool -> GenHaxl u w ()
