@@ -6,10 +6,11 @@ module Main
   ) where
 
 import           Control.Monad                        (when)
+import           Control.Monad                        (forM_, void, when)
 import           Data.Default.Class                   (def)
 import           Data.IORef                           (newIORef)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
-import           Data.Text                            (pack)
+import           Data.Text                            (pack, unpack)
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
 import           System.Exit                          (exitSuccess)
@@ -103,7 +104,9 @@ program Options { getConfigFile  = confFile
                             $ setHost (Host host) (settings def) }
 
 
-  _ <- runIO0 createTable
+  runIO0 $ forM_ (pack prefix:allowKeys) $ \tp -> do
+    setTablePrefix $ unpack tp
+    void createTable
 
   when dryRun exitSuccess
 
