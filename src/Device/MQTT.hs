@@ -132,29 +132,31 @@ cacheAble MqttEnv {..} h t io = do
           Cache.insert' mReqCache (Just $ TimeSpec t 0) h (Just vo)
           return $ Just vo
 
-messageCallback :: (Text -> ByteString -> Bool -> IO ()) -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
+messageCallback
+  :: (Text -> Text -> ByteString -> Bool -> IO ())
+  -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
 messageCallback saveAttributes resCache _ topic payload _ =
   case splitOn "/" topic of
-    (_:_:uuid:"response":reqid:_) -> do
+    (_:key:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
       now <- getTime Monotonic
       let t = case defaultExpiration resCache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
-      saveAttributes uuid payload False
+      saveAttributes key uuid payload False
       atomically $ do
         r <- Cache.lookupSTM True k resCache now
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:_:uuid:"attributes":_) -> saveAttributes uuid payload True
-    (_:_:uuid:"telemetry":_)  -> saveAttributes uuid online True
-    (_:_:uuid:"ping":_)       -> saveAttributes uuid online True
+    (_:key:uuid:"attributes":_) -> saveAttributes key uuid payload True
+    (_:key:uuid:"telemetry":_)  -> saveAttributes key uuid online True
+    (_:key:uuid:"ping":_)       -> saveAttributes key uuid online True
     _ -> pure ()
 
   where online = "{\"state\": \"online\"}"
 
-startMQTT :: [Text] -> URI -> (Text -> ByteString -> Bool -> IO ())-> IO MqttEnv
+startMQTT :: [Text] -> URI -> (Text -> Text -> ByteString -> Bool -> IO ())-> IO MqttEnv
 startMQTT keys mqttURI saveAttributes = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)

@@ -5,7 +5,6 @@ module Main
   ( main
   ) where
 
-import           Control.Monad                        (when)
 import           Control.Monad                        (forM_, void, when)
 import           Data.Default.Class                   (def)
 import           Data.IORef                           (newIORef)
@@ -110,8 +109,10 @@ program Options { getConfigFile  = confFile
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \uuid bs force ->
-    runIO0  (updateDeviceMetaByUUID uuid bs force)
+  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \key uuid bs force ->
+    runIO0 $ do
+      setTablePrefix $ unpack key
+      updateDeviceMetaByUUID uuid bs force
 
   scottyOptsT opts runIO0 (application mqtt)
   where runIO :: HasPSQL u => u -> Int -> Int -> GenHaxl u w b -> IO b
