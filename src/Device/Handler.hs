@@ -13,6 +13,7 @@ module Device.Handler
   , removeDeviceHandler
   , getDeviceHandler
   , rpcHandler
+  , addKey
   ) where
 
 import           Control.Monad          (void, when)
@@ -24,6 +25,7 @@ import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
 import qualified Data.Text              as T (null)
+import qualified Data.Text.Lazy         as LT (unpack)
 import           Data.UUID              (fromText)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
@@ -34,7 +36,7 @@ import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status403, status500)
 import           Web.Scotty.Haxl        (ActionH)
-import           Web.Scotty.Trans       (addHeader, json, param, raw)
+import           Web.Scotty.Trans       (addHeader, header, json, param, raw)
 import           Web.Scotty.Utils       (err, errBadRequest, errNotFound, ok,
                                          okListResult, safeParam)
 
@@ -51,6 +53,17 @@ apiDevice = do
     case devid of
       Nothing  -> pure Nothing
       Just did -> getDevice did
+
+
+addKey :: ActionH u w () -> ActionH u w ()
+addKey next = do
+  hv0 <- header "X-REQUEST-KEY"
+  case hv0 of
+    Just key -> lift $ setTablePrefix $ LT.unpack key
+    Nothing -> do
+      hv1 <- safeParam "key" ""
+      lift $ setTablePrefix hv1
+  next
 
 requireDevice :: (HasPSQL u, HasOtherEnv Cache u) => (Device -> ActionH u w ()) -> ActionH u w ()
 requireDevice next = do

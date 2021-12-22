@@ -15,6 +15,7 @@ module Device.API
   , updateDeviceUserName
   , removeDevice
   , updateDeviceMetaByUUID
+  , setTablePrefix
   , module X
   ) where
 
@@ -35,6 +36,7 @@ import           Data.Text.Encoding     (decodeUtf8)
 import           Data.UnixTime
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
+import qualified Device.DataSource      as DS (setTablePrefix)
 import           Device.RawAPI          as X (createTable, getDevIdByToken,
                                               getDevIdByUuid, getDevIdList,
                                               getDevIdListByName,
@@ -42,7 +44,7 @@ import           Device.RawAPI          as X (createTable, getDevIdByToken,
                                               getDevIdListByType)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
-import           Haxl.Core              (GenHaxl)
+import           Haxl.Core              (Env (..), GenHaxl, env, stateGet)
 import           Haxl.RedisCache        (cached, cached', get, remove, set)
 import           Web.Scotty.Haxl        ()
 
@@ -185,7 +187,7 @@ updateDeviceMetaByUUID uuid meta force = do
               unless (HM.member "err" ev) $ do
                 let nv = union (filterMeta force (Object ev) ometa)
                        $ if HM.member "addr" ev then ometa
-                                                else union online ometa
+                                                else online `union` ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
                 unless (HM.member "addr" ev) $ do
                   t <- liftIO $ read . show . toEpochTime <$> getUnixTime
@@ -196,3 +198,12 @@ updateDeviceMetaByUUID uuid meta force = do
 
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
 getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
+
+
+setTablePrefix :: String -> GenHaxl u w ()
+setTablePrefix ""     = pure ()
+setTablePrefix prefix = do
+  ms <- env (stateGet . states)
+  case ms of
+    Nothing -> pure ()
+    Just s  -> liftIO $ DS.setTablePrefix s $ fromString prefix

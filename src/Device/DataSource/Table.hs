@@ -23,7 +23,7 @@ createDeviceTable =
 
 createTable :: PSQL Int64
 createTable =
-  sum <$> mapM id
+  sum <$> sequence
     [ createDeviceTable
     , createIndex True "devices" "device_token" ["token"]
     , createIndex True "devices" "device_uuid" ["uuid"]

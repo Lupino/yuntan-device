@@ -9,19 +9,23 @@
 module Device.DataSource
   ( DeviceReq(..)
   , initDeviceState
+  , setTablePrefix
   ) where
+
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
 import qualified Control.Exception          (SomeException, bracket_, try)
 import           Data.Hashable              (Hashable (..))
+import           Data.IORef                 (IORef, readIORef, writeIORef)
 import           Data.Int                   (Int64)
+import           Data.Maybe                 (fromMaybe)
 import           Data.Pool                  (withResource)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
-import           Database.PSQL.Types        (From, HasPSQL, OrderBy, PSQL, Size,
-                                             TablePrefix, psqlPool, runPSQL,
-                                             tablePrefix)
+import           Database.PSQL.Types        (From, HasPSQL, OrderBy, PSQL,
+                                             PSQLPool, Size, TablePrefix,
+                                             psqlPool, runPSQL, tablePrefix)
 import           Database.PostgreSQL.Simple (Connection)
 import           Device.DataSource.Device
 import           Device.DataSource.Table
@@ -71,7 +75,7 @@ deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
 
 instance StateKey DeviceReq where
-  data State DeviceReq = DeviceState { numThreads :: Int }
+  data State DeviceReq = DeviceState { numThreads :: Int, statePrefix :: IORef (Maybe TablePrefix) }
 
 instance DataSourceName DeviceReq where
   dataSourceName _ = "DeviceDataSource"
@@ -88,16 +92,14 @@ doFetch
 
 doFetch _state _flags _user = AsyncFetch $ \reqs inner -> do
   sem <- newQSem $ numThreads _state
-  asyncs <- mapM (fetchAsync sem _user) reqs
+  prefix <- fromMaybe (tablePrefix _user) <$> readIORef (statePrefix _state)
+  asyncs <- mapM (fetchAsync sem (psqlPool _user) prefix) reqs
   inner
   mapM_ wait asyncs
 
-fetchAsync :: HasPSQL u => QSem -> u -> BlockedFetch DeviceReq -> IO (Async ())
-fetchAsync sem env req = async $
+fetchAsync :: QSem -> PSQLPool -> TablePrefix -> BlockedFetch DeviceReq -> IO (Async ())
+fetchAsync sem pool prefix req = async $
   Control.Exception.bracket_ (waitQSem sem) (signalQSem sem) $ withResource pool $ fetchSync req prefix
-
-  where pool   = psqlPool env
-        prefix = tablePrefix env
 
 fetchSync :: BlockedFetch DeviceReq -> TablePrefix -> Connection -> IO ()
 fetchSync (BlockedFetch req rvar) prefix conn = do
@@ -123,5 +125,9 @@ fetchReq (CountDeviceByNameAndType u t)         = countDeviceByNameAndType u t
 fetchReq (UpdateDevice i f t)                   = updateDevice i f t
 fetchReq (RemoveDevice i)                       = removeDevice i
 
-initDeviceState :: Int -> State DeviceReq
+initDeviceState :: Int -> IORef (Maybe TablePrefix) -> State DeviceReq
 initDeviceState = DeviceState
+
+
+setTablePrefix :: State DeviceReq -> TablePrefix -> IO ()
+setTablePrefix ds prefix = writeIORef (statePrefix ds) (Just prefix)
