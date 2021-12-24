@@ -24,8 +24,8 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
-import qualified Data.Text              as T (null)
-import qualified Data.Text.Lazy         as LT (unpack)
+import qualified Data.Text              as T (Text, null, unpack)
+import qualified Data.Text.Lazy         as LT (toStrict)
 import           Data.UUID              (fromText)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
@@ -55,14 +55,24 @@ apiDevice = do
       Just did -> getDevice did
 
 
-addKey :: ActionH u w () -> ActionH u w ()
-addKey next = do
+getKey :: ActionH u w (Maybe T.Text)
+getKey = do
   hv0 <- header "X-REQUEST-KEY"
   case hv0 of
-    Just key -> lift $ setTablePrefix $ LT.unpack key
+    Just key -> pure . Just $ LT.toStrict key
     Nothing -> do
       hv1 <- safeParam "key" ""
-      lift $ setTablePrefix hv1
+      case hv1 of
+        "" -> pure Nothing
+        _  -> pure $ Just hv1
+
+
+addKey :: ActionH u w () -> ActionH u w ()
+addKey next = do
+  mmKey <- getKey
+  case mmKey of
+    Nothing  -> pure ()
+    Just key -> lift . setTablePrefix $ T.unpack key
   next
 
 requireDevice :: (HasPSQL u, HasOtherEnv Cache u) => (Device -> ActionH u w ()) -> ActionH u w ()
@@ -188,7 +198,8 @@ rpcHandler mqtt_ Device{devUUID = uuid, devUserName = un} = do
   cacheHash <- safeParam "cache-hash" ""
   cacheTimeout <- safeParam "cache-timeout" 10
   let ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
-  r <- liftIO $ ca $ request mqtt uuid payload tout
+  mmKey <- getKey
+  r <- liftIO $ ca $ request mqtt mmKey uuid payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do

@@ -22,6 +22,7 @@ import           Data.Cache             (Cache (..), newCache)
 import qualified Data.Cache             as Cache (deleteSTM, insert', insertSTM,
                                                   lookupSTM, purgeExpired)
 import           Data.Int               (Int64)
+import           Data.Maybe             (fromMaybe)
 import           Data.Text              (Text, append, pack, splitOn)
 import           Network.MQTT.Client
 import           Network.URI            (URI, uriFragment)
@@ -76,8 +77,8 @@ genHex n = concatMap w . B.unpack <$> getEntropy n
 
 
 -- request env uuid data timeout
-request :: MqttEnv -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
-request MqttEnv {..} uuid p t = do
+request :: MqttEnv -> Maybe Text -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
+request MqttEnv {..} mmKey uuid p t = do
   reqid <- pack <$> genHex 4
 
   let k = responseKey uuid reqid
@@ -88,7 +89,7 @@ request MqttEnv {..} uuid p t = do
   case client of
     Nothing -> return Nothing
     Just c -> do
-      publish c (requestTopic mKey uuid reqid) p False
+      publish c (requestTopic (fromMaybe mKey mmKey) uuid reqid) p False
 
       now <- getTime Monotonic
 
