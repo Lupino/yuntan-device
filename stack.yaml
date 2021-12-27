@@ -50,7 +50,7 @@ extra-deps:
 - git: https://github.com/facebook/Haxl.git
   commit: 2d3731ec7a9959c19f74baa5613ed1a3363ab798
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: d1cc77fb8828262d3778b1e008409e68b35f916b
+  commit: bf9cfdbbbdcff78e9c8b7cef1b38857d1e8c2e56
   subdirs:
   - rediscaching-haxl
 

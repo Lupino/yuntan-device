@@ -17,7 +17,8 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
 import qualified Control.Exception          (SomeException, bracket_, try)
 import           Data.Hashable              (Hashable (..))
-import           Data.IORef                 (IORef, readIORef, writeIORef)
+import           Data.IORef                 (IORef, newIORef, readIORef,
+                                             writeIORef)
 import           Data.Int                   (Int64)
 import           Data.Maybe                 (fromMaybe)
 import           Data.Pool                  (withResource)
@@ -125,8 +126,10 @@ fetchReq (CountDeviceByNameAndType u t)         = countDeviceByNameAndType u t
 fetchReq (UpdateDevice i f t)                   = updateDevice i f t
 fetchReq (RemoveDevice i)                       = removeDevice i
 
-initDeviceState :: Int -> IORef (Maybe TablePrefix) -> State DeviceReq
-initDeviceState = DeviceState
+initDeviceState :: Int -> IO (State DeviceReq)
+initDeviceState threads = do
+  ref <- newIORef Nothing
+  return $ DeviceState threads ref
 
 
 setTablePrefix :: State DeviceReq -> TablePrefix -> IO ()

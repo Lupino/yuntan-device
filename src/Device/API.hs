@@ -45,7 +45,8 @@ import           Device.RawAPI          as X (createTable, getDevIdByToken,
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (Env (..), GenHaxl, env, stateGet)
-import           Haxl.RedisCache        (cached, cached', get, remove, set)
+import           Haxl.RedisCache        (cached, cached', get, remove, set,
+                                         setRedisPrefix)
 import           Web.Scotty.Haxl        ()
 
 ($>) :: GenHaxl u w a -> GenHaxl u w () -> GenHaxl u w a
@@ -207,3 +208,8 @@ setTablePrefix prefix = do
   case ms of
     Nothing -> pure ()
     Just s  -> liftIO $ DS.setTablePrefix s $ fromString prefix
+
+  mrs <- env (stateGet . states)
+  case mrs of
+    Nothing -> pure ()
+    Just s  -> liftIO $ setRedisPrefix s $ fromString prefix

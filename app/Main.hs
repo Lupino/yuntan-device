@@ -7,7 +7,6 @@ module Main
 
 import           Control.Monad                        (forM_, void, when)
 import           Data.Default.Class                   (def)
-import           Data.IORef                           (newIORef)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Data.Text                            (pack, unpack)
 import           Network.Wai.Handler.Warp             (setHost, setPort)
@@ -117,9 +116,9 @@ program Options { getConfigFile  = confFile
   scottyOptsT opts runIO0 (application mqtt)
   where runIO :: HasPSQL u => u -> Int -> Int -> GenHaxl u w b -> IO b
         runIO env psqlThreads redisThreads m = do
-          ref <- newIORef Nothing
-          let s = stateSet (initRedisState redisThreads $ fromString prefix)
-                $ stateSet (initDeviceState psqlThreads ref) stateEmpty
+          redisState <- initRedisState redisThreads $ fromString prefix
+          deviceState <- initDeviceState psqlThreads
+          let s = stateSet redisState $ stateSet deviceState stateEmpty
 
           env0 <- initEnv s env
           runHaxl env0 m
