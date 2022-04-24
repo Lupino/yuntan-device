@@ -25,9 +25,9 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson             (Value (Object), decode, encode, object,
                                          (.=))
 import           Data.Aeson.Helper      (union)
+import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, member)
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Lazy   as LB (ByteString, toStrict)
-import qualified Data.HashMap.Strict    as HM (filterWithKey, member)
 import           Data.Int               (Int64)
 import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
@@ -170,7 +170,7 @@ removeDevice devid = do
       $ RawAPI.removeDevice devid
 
 filterMeta :: Bool -> Value -> Value -> Value
-filterMeta False (Object nv) (Object ov) = Object $ HM.filterWithKey (\k _ -> HM.member k ov) nv
+filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
 filterMeta _ nv _ = nv
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> Bool -> GenHaxl u w ()
@@ -185,12 +185,12 @@ updateDeviceMetaByUUID uuid meta force = do
         Just Device{devMeta = ometa} ->
           case decode meta of
             Just (Object ev) ->
-              unless (HM.member "err" ev) $ do
+              unless (KeyMap.member "err" ev) $ do
                 let nv = union (filterMeta force (Object ev) ometa)
-                       $ if HM.member "addr" ev then ometa
+                       $ if KeyMap.member "addr" ev then ometa
                                                 else online `union` ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
-                unless (HM.member "addr" ev) $ do
+                unless (KeyMap.member "addr" ev) $ do
                   t <- liftIO $ read . show . toEpochTime <$> getUnixTime
                   void $ set redisEnv (genPingAtKey did) (t :: Int64)
             _ -> pure ()

@@ -42,16 +42,16 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - net-mqtt-0.7.0.1@sha256:07f966e800f9a5a5803fa72bd9145d832517e4adea34ee84234056d53ffea3d4,4131
-- psql-utils-0.2.0.1@sha256:268cbbbf725e8065d0336062d6075aec86470ea5f75ecd4f64081ba6a0d7a435,1000
-- aeson-result-0.1.0.0@sha256:aca78a2effeb5cc264c956aa2806cdca790ad260a12e35b13479161bca4369ed,878
-- aeson-helper-0.1.0.0@sha256:bca5efad4fc9ceea3d8eec1ada486276fe54845e72e1788b875074cba6aca619,908
-- scotty-haxl-0.1.0.0@sha256:088963822d709975e9a39875bccb95245bcee669b0f118ff7069ccdbebfcfed4,863
-- scotty-utils-0.1.0.0@sha256:6a689f7a3de8d7be2ae49fc1585f21820a2d8c21f4f1ed2c0fbf407f46e68ff4,917
 - git: https://github.com/facebook/Haxl.git
-  commit: 2d3731ec7a9959c19f74baa5613ed1a3363ab798
+  commit: 40d45c1a6ae470aab551c5683e0ac40f73d0aa32
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: bf9cfdbbbdcff78e9c8b7cef1b38857d1e8c2e56
+  commit: ae08c128db3edf30863700e74de028ce0e5a93cb
   subdirs:
+  - psql-utils
+  - aeson-result
+  - aeson-helper
+  - scotty-haxl
+  - scotty-utils
   - rediscaching-haxl
 
 # Override default flag values for local packages and extra-deps
