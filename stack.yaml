@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-18.14
+resolver: lts-19.4
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -37,11 +37,11 @@ resolver: lts-18.14
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-# - mqtt-hs
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- net-mqtt-0.7.0.1@sha256:07f966e800f9a5a5803fa72bd9145d832517e4adea34ee84234056d53ffea3d4,4131
+- git: https://github.com/dustin/mqtt-hs.git
+  commit: 330cf6a8a491221a0acc52679520b10947f3700e
 - git: https://github.com/facebook/Haxl.git
   commit: 40d45c1a6ae470aab551c5683e0ac40f73d0aa32
 - git: https://github.com/Lupino/yuntan-common.git
