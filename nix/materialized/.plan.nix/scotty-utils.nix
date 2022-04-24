@@ -11,15 +11,15 @@
     flags = {};
     package = {
       specVersion = "1.10";
-      identifier = { name = "rediscaching-haxl"; version = "0.1.0.0"; };
+      identifier = { name = "scotty-utils"; version = "0.2.0.0"; };
       license = "BSD-3-Clause";
       copyright = "MIT";
       maintainer = "lmjubuntu@gmail.com";
       author = "Li Meng Jun";
-      homepage = "https://github.com/Lupino/yuntan-common/tree/master/rediscaching-haxl#readme";
+      homepage = "https://github.com/Lupino/yuntan-common/tree/master/scotty-utils#readme";
       url = "";
-      synopsis = "Combine redis caching and haxl.";
-      description = "Combine redis caching and haxl. easy to use redis caching on haxl";
+      synopsis = "Scotty utils library";
+      description = "Scotty utils library.";
       buildType = "Simple";
       isLocal = true;
       detailLevel = "FullDetails";
@@ -34,17 +34,14 @@
       "library" = {
         depends = [
           (hsPkgs."base" or (errorHandler.buildDepError "base"))
-          (hsPkgs."haxl" or (errorHandler.buildDepError "haxl"))
-          (hsPkgs."hedis" or (errorHandler.buildDepError "hedis"))
-          (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
+          (hsPkgs."http-types" or (errorHandler.buildDepError "http-types"))
           (hsPkgs."aeson" or (errorHandler.buildDepError "aeson"))
-          (hsPkgs."async" or (errorHandler.buildDepError "async"))
-          (hsPkgs."hashable" or (errorHandler.buildDepError "hashable"))
-          (hsPkgs."network" or (errorHandler.buildDepError "network"))
-          (hsPkgs."time" or (errorHandler.buildDepError "time"))
+          (hsPkgs."scotty" or (errorHandler.buildDepError "scotty"))
+          (hsPkgs."text" or (errorHandler.buildDepError "text"))
+          (hsPkgs."aeson-result" or (errorHandler.buildDepError "aeson-result"))
           ];
         buildable = true;
-        modules = [ "Haxl/RedisCache" "Haxl/RedisConfig" ];
+        modules = [ "Web/Scotty/Utils" ];
         hsSourceDirs = [ "src" ];
         };
       };
@@ -58,5 +55,5 @@
       rev = "minimal";
       sha256 = "";
       };
-    postUnpack = "sourceRoot+=/rediscaching-haxl; echo source root reset to $sourceRoot";
+    postUnpack = "sourceRoot+=/scotty-utils; echo source root reset to $sourceRoot";
     }

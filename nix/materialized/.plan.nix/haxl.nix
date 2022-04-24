@@ -11,7 +11,7 @@
     flags = { bench = false; };
     package = {
       specVersion = "1.10";
-      identifier = { name = "haxl"; version = "2.3.0.0"; };
+      identifier = { name = "haxl"; version = "2.4.0.0"; };
       license = "BSD-3-Clause";
       copyright = "Copyright (c) 2014-present, Facebook, Inc.";
       maintainer = "The Haxl Team <haxl-team@fb.com>";
@@ -133,10 +133,12 @@
             "CoreTests"
             "DataCacheTest"
             "ExampleDataSource"
+            "ExceptionStackTests"
             "FullyAsyncTest"
             "LoadCache"
             "MemoizationTests"
             "MockTAO"
+            "MonadAsyncTest"
             "OutgoneFetchesTests"
             "ParallelTests"
             "ProfileTests"
@@ -148,10 +150,21 @@
             "TestUtils"
             "WorkDataSource"
             "WriteTests"
+            "DataSourceDispatchTests"
             ];
           hsSourceDirs = [ "tests" ];
           mainPath = [ "TestMain.hs" ];
           };
         };
       };
-    } // rec { src = (pkgs.lib).mkDefault .././.source-repository-packages/1; }
+    } // {
+    src = (pkgs.lib).mkDefault (pkgs.fetchgit {
+      url = "2";
+      rev = "minimal";
+      sha256 = "";
+      }) // {
+      url = "2";
+      rev = "minimal";
+      sha256 = "";
+      };
+    }

@@ -1,4 +1,4 @@
-{ compiler-nix-name ? "ghc8105" }:
+{ compiler-nix-name ? "ghc922" }:
 let
   # Read in the Niv sources
   sources = import ./nix/sources.nix {};
@@ -26,10 +26,10 @@ in pkgs.haskell-nix.cabalProject {
       src = ./.;
       name = "yuntan-device";
     };
-    index-state = "2021-06-30T00:00:00Z";
-    index-sha256 = "0f6213f13984148dbf6ad865576e3a9ebb330751b30b49a7f6e02697865cbb01";
-    plan-sha256 = if compiler-nix-name == "ghc8105" then "1sgny1sbdljhnnhm9v2gipinni9wnl2c0hzg6hagbc1glwdfh7sd" else null;
-    materialized = if compiler-nix-name == "ghc8105" then ./nix/materialized else null;
+    index-state = "2022-04-12T00:00:00Z";
+    index-sha256 = "9bf96168377dff50dcfbe4f9dbc5787a5059541644dee07e4992e1b21abd0bb9";
+    plan-sha256 = if compiler-nix-name == "ghc922" then "1mj0za2hkz9pg3pncjpqvp7mqs06flpbw31538ycy1cbdnl4bmx0" else null;
+    materialized = if compiler-nix-name == "ghc922" then ./nix/materialized else null;
     # Specify the GHC version to use.
     compiler-nix-name = compiler-nix-name;
     modules = [(
@@ -37,6 +37,9 @@ in pkgs.haskell-nix.cabalProject {
          packages.yuntan-device.configureFlags = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isMusl [
            "--ghc-option=-optl=-lssl"
            "--ghc-option=-optl=-lcrypto"
+           "--ghc-option=-optl=-lpgport"
+           "--ghc-option=-optl=-lpgcommon"
+           "--ghc-option=-optl=-L${pkgs.pq.out}/lib"
            "--ghc-option=-optl=-L${pkgs.openssl.out}/lib"
          ];
       })];
