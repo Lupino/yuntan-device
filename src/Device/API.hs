@@ -27,12 +27,12 @@ import           Data.Aeson             (Value (Object), decode, encode, object,
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, member)
 import           Data.ByteString        (ByteString)
-import qualified Data.ByteString.Lazy   as LB (ByteString, toStrict)
+import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Int               (Int64)
 import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
-import           Data.Text              (Text, unpack)
-import           Data.Text.Encoding     (decodeUtf8)
+import           Data.Text              (Text, replace, unpack)
+import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Data.UnixTime
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
@@ -48,6 +48,10 @@ import           Haxl.Core              (Env (..), GenHaxl, env, stateGet)
 import           Haxl.RedisCache        (cached, cached', get, remove, set,
                                          setRedisPrefix)
 import           Web.Scotty.Haxl        ()
+
+
+replaceLB :: LB.ByteString -> LB.ByteString
+replaceLB = LB.fromStrict . encodeUtf8 . replace "NAN" "0" . decodeUtf8 . LB.toStrict
 
 ($>) :: GenHaxl u w a -> GenHaxl u w () -> GenHaxl u w a
 io $> a = do
@@ -174,7 +178,7 @@ filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -
 filterMeta _ nv _ = nv
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> Bool -> GenHaxl u w ()
-updateDeviceMetaByUUID uuid meta force = do
+updateDeviceMetaByUUID uuid meta0 force = do
   devid <- getDevIdByUuid uuid
   case devid of
     Nothing -> pure ()
@@ -196,6 +200,7 @@ updateDeviceMetaByUUID uuid meta force = do
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
+        meta = replaceLB meta0
 
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
 getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
