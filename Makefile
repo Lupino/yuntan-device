@@ -1,7 +1,7 @@
 PLATFORM ?= musl64
 STRIP = strip
 PKG ?= yuntan-device
-COMPILER = ghc922
+COMPILER = ghc927
 
 ifeq ($(PLATFORM),aarch64-multiplatform-musl)
 STRIP = aarch64-linux-gnu-strip
