@@ -18,7 +18,7 @@ import           Web.Scotty.Trans                     (delete, get, middleware,
 
 import           Data.String                          (fromString)
 import           Database.PSQL.Types                  (HasOtherEnv, HasPSQL,
-                                                       simpleEnv)
+                                                       SimpleEnv, simpleEnv)
 import           Haxl.RedisCache                      (initRedisState)
 import           Web.Scotty.Haxl                      (ScottyH)
 
@@ -114,7 +114,7 @@ program Options { getConfigFile  = confFile
       updateDeviceMetaByUUID uuid bs force
 
   scottyOptsT opts runIO0 (application mqtt)
-  where runIO :: HasPSQL u => u -> Int -> Int -> GenHaxl u w b -> IO b
+  where runIO :: SimpleEnv C.Cache -> Int -> Int -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
         runIO env psqlThreads redisThreads m = do
           redisState <- initRedisState redisThreads $ fromString prefix
           deviceState <- initDeviceState psqlThreads
@@ -123,7 +123,7 @@ program Options { getConfigFile  = confFile
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: (HasPSQL u, HasOtherEnv C.Cache u) => MqttEnv -> ScottyH u w ()
+application :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w) => MqttEnv -> ScottyH u w ()
 application mqtt = do
   middleware logStdout
 

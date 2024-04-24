@@ -55,7 +55,7 @@ apiDevice = do
       Just did -> getDevice did
 
 
-getKey :: ActionH u w (Maybe T.Text)
+getKey :: Monoid w => ActionH u w (Maybe T.Text)
 getKey = do
   hv0 <- header "X-REQUEST-KEY"
   case hv0 of
@@ -67,7 +67,7 @@ getKey = do
         _  -> pure $ Just hv1
 
 
-addKey :: ActionH u w () -> ActionH u w ()
+addKey :: Monoid w => ActionH u w () -> ActionH u w ()
 addKey next = do
   mmKey <- getKey
   case mmKey of
@@ -135,14 +135,14 @@ updateDeviceUserNameHandler Device{devID = did} = do
   resultOKOrErr ret "update device username failed"
 
 -- GET /api/devices/
-getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
+getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => ActionH u w ()
 getDeviceListHandler = do
   tp <- safeParam "type" ""
   if T.null tp then resultDeviceList getDevIdList countDevice
                else resultDeviceList (getDevIdListByType tp) (countDeviceByType tp)
 
 -- GET /api/users/:username/devices/
-getDeviceListByNameHandler :: (HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
+getDeviceListByNameHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => ActionH u w ()
 getDeviceListByNameHandler = do
   un <- param "username"
   tp <- safeParam "type" ""
@@ -175,7 +175,7 @@ resultOKOrErr o m = if o > 0 then resultOK
                              else err status500 m
 
 resultDeviceList
-  :: (HasPSQL u, HasOtherEnv Cache u)
+  :: (HasPSQL u, HasOtherEnv Cache u, Monoid w)
   => (From -> Size -> OrderBy -> GenHaxl u w [DeviceID])
   -> GenHaxl u w Int64 -> ActionH u w ()
 resultDeviceList getList count = do
@@ -191,7 +191,7 @@ resultDeviceList getList count = do
     , getResult = catMaybes devices
     }
 
-rpcHandler :: HasPSQL u => MqttEnv -> Device -> ActionH u w ()
+rpcHandler :: (HasPSQL u, Monoid w) => MqttEnv -> Device -> ActionH u w ()
 rpcHandler mqtt_ Device{devUUID = uuid, devUserName = un} = do
   payload <- param "payload"
   tout <- min 300 <$> safeParam "timeout" 300
