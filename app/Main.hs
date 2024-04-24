@@ -24,9 +24,9 @@ import           Web.Scotty.Haxl                      (ScottyH)
 
 import           Device
 import           Device.Handler
-import           Haxl.Core                            (GenHaxl, initEnv,
-                                                       runHaxl, stateEmpty,
-                                                       stateSet)
+import           Haxl.Core                            (GenHaxl, StateStore,
+                                                       initEnv, runHaxl,
+                                                       stateEmpty, stateSet)
 
 import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
@@ -76,12 +76,14 @@ main = execParser opts >>= program
      <> header "yuntan-device - Device micro server" )
 
 program :: Options -> IO ()
-program Options { getConfigFile  = confFile
-                , getTablePrefix = prefix
-                , getHost        = host
-                , getPort        = port
-                , getDryRun      = dryRun
-                } = do
+program Options
+  { getConfigFile  = confFile
+  , getTablePrefix = prefix
+  , getHost        = host
+  , getPort        = port
+  , getDryRun      = dryRun
+  } = do
+
   (Right conf) <- Y.decodeFileEither confFile
 
   let psqlConfig  = C.psqlConfig conf
@@ -97,10 +99,15 @@ program Options { getConfigFile  = confFile
   redis <- C.genRedisConnection redisConfig
 
   let u = simpleEnv pool (fromString prefix) $ C.mkCache redis
-      runIO0 = runIO u psqlThreads redisThreads
+      s = stateSet (initRedisState redisThreads $ fromString prefix)
+        $ stateSet (initDeviceState psqlThreads $ fromString prefix)
+        stateEmpty
+      runIO0 = runIO u s
 
-  let opts = def { settings = setPort port
-                            $ setHost (Host host) (settings def) }
+      opts = def
+        { settings = setPort port
+                   $ setHost (Host host) (settings def)
+        }
 
 
   runIO0 $ void createTable
@@ -111,12 +118,8 @@ program Options { getConfigFile  = confFile
     runIO0 $ updateDeviceMetaByUUID uuid bs force
 
   scottyOptsT opts runIO0 (application mqtt)
-  where runIO :: SimpleEnv C.Cache -> Int -> Int -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
-        runIO env psqlThreads redisThreads m = do
-          redisState <- initRedisState redisThreads $ fromString prefix
-          let s = stateSet redisState
-                $ stateSet (initDeviceState psqlThreads $ fromString prefix)
-                stateEmpty
+  where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
+        runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 

@@ -38,8 +38,7 @@ import           Device.RawAPI          as X (createTable, getDevIdByToken,
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, remove, set,
-                                         setRedisPrefix)
+import           Haxl.RedisCache        (cached, cached', get, remove, set)
 import           Web.Scotty.Haxl        ()
 
 
