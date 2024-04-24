@@ -6,13 +6,10 @@ module Device.Handler
   , createDeviceHandler
   , updateDeviceMetaHandler
   , updateDeviceTokenHandler
-  , updateDeviceUserNameHandler
   , getDeviceListHandler
-  , getDeviceListByNameHandler
   , removeDeviceHandler
   , getDeviceHandler
   , rpcHandler
-  , addKey
   ) where
 
 import           Control.Monad          (void, when)
@@ -23,8 +20,7 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
-import qualified Data.Text              as T (Text, null, unpack)
-import qualified Data.Text.Lazy         as LT (toStrict)
+import qualified Data.Text              as T (null)
 import           Data.UUID              (fromText)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
@@ -36,7 +32,7 @@ import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status403, status500)
 import           Web.Scotty.Haxl        (ActionH)
 import           Web.Scotty.Trans       (addHeader, captureParam, formParam,
-                                         header, json, raw)
+                                         json, raw)
 import           Web.Scotty.Utils       (err, errBadRequest, errNotFound, ok,
                                          okListResult, safeFormParam,
                                          safeQueryParam)
@@ -55,27 +51,6 @@ apiDevice = do
       Nothing  -> pure Nothing
       Just did -> getDevice did
 
-
-getKey :: Monoid w => ActionH u w (Maybe T.Text)
-getKey = do
-  hv0 <- header "X-REQUEST-KEY"
-  case hv0 of
-    Just key -> pure . Just $ LT.toStrict key
-    Nothing -> do
-      hv1 <- safeQueryParam "key" ""
-      case hv1 of
-        "" -> pure Nothing
-        _  -> pure $ Just hv1
-
-
-addKey :: Monoid w => ActionH u w () -> ActionH u w ()
-addKey next = do
-  mmKey <- getKey
-  case mmKey of
-    Nothing  -> pure ()
-    Just key -> lift . setTablePrefix $ T.unpack key
-  next
-
 requireDevice :: (HasPSQL u, HasOtherEnv Cache u) => (Device -> ActionH u w ()) -> ActionH u w ()
 requireDevice next = do
   device <- apiDevice
@@ -85,25 +60,27 @@ requireDevice next = do
 
 requireOwner :: (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requireOwner next device = do
-  username <- captureParam "username"
-  if devUserName device == username then next device
+  key <- captureParam "key"
+  if devKey device == key then next device
                                     else err status403 "no permission"
 
 -- POST /api/devices/
--- POST /api/users/:username/devices/
-createDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
-createDeviceHandler = do
-  username <- formParam "username"
-  token <- formParam "token"
-  olddevid <- lift $ getDevIdByToken token
-  case olddevid of
-    Just _ -> errBadRequest "token is already used."
-    Nothing -> do
-      devid <- lift $ createDevice username token
-      json =<< lift (getDevice devid)
+createDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => [Key] -> ActionH u w ()
+createDeviceHandler allowKeys = do
+  key <- formParam "key"
+  if key `elem` allowKeys then do
+    kid <- lift $ getDevKeyId key
+    token <- formParam "token"
+    olddevid <- lift $ getDevIdByToken token
+    case olddevid of
+      Just _ -> errBadRequest "token is already used."
+      Nothing -> do
+        devid <- lift $ createDevice kid token
+        json =<< lift (getDevice devid)
+
+  else errBadRequest "key is invalid"
 
 -- POST /api/devices/:uuidOrToken/token/
--- POST /api/users/:username/devices/:uuidOrToken/token/
 updateDeviceTokenHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 updateDeviceTokenHandler Device{devID = did} = do
   token <- formParam "token"
@@ -111,7 +88,6 @@ updateDeviceTokenHandler Device{devID = did} = do
   resultOKOrErr ret "update device token failed"
 
 -- POST /api/devices/:uuidOrToken/meta/
--- POST /api/users/:username/devices/:uuidOrToken/meta/
 updateDeviceMetaHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- formParam "meta"
@@ -119,36 +95,26 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
     Just ev -> void (lift $ updateDeviceMeta did $ union ev ometa) >> resultOK
     Nothing -> errBadRequest "meta filed is required."
 
--- POST /api/devices/:uuidOrToken/username/
-updateDeviceUserNameHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
-updateDeviceUserNameHandler Device{devID = did} = do
-  un <- formParam "username"
-  ret <- lift $ updateDeviceUserName did un
-  resultOKOrErr ret "update device username failed"
-
 -- GET /api/devices/
-getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => ActionH u w ()
-getDeviceListHandler = resultDeviceList getDevIdList countDevice
-
--- GET /api/users/:username/devices/
-getDeviceListByNameHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => ActionH u w ()
-getDeviceListByNameHandler = do
-  un <- captureParam "username"
-  resultDeviceList (getDevIdListByName un) (countDeviceByName un)
+getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
+getDeviceListHandler allowKeys = do
+  key <- safeQueryParam "key" ""
+  if key `elem` allowKeys then do
+    kid <- lift $ getDevKeyId key
+    resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
+  else resultDeviceList getDevIdList countDevice
 
 -- DELETE /api/devices/:uuidOrToken/
--- DELETE /api/users/:username/devices/:uuidOrToken/
 removeDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => MqttEnv -> Device -> ActionH u w ()
-removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devUserName = un} = do
+removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devKey = key} = do
   void $ lift $ removeDevice did
   liftIO $ sendDrop mqtt uuid
   resultOK
 
-  where mqtt = if un `elem` mAllowKeys mqtt_ then mqtt_ {mKey = un} else mqtt_
+  where mqtt = if key `elem` mAllowKeys mqtt_ then mqtt_ {mKey = key} else mqtt_
 
 
 -- GET /api/devices/:uuidOrToken/
--- GET /api/users/:username/devices/:uuidOrToken/
 getDeviceHandler :: Device -> ActionH u w ()
 getDeviceHandler = ok "device"
 
@@ -177,14 +143,13 @@ resultDeviceList getList count = do
     }
 
 rpcHandler :: (HasPSQL u, Monoid w) => MqttEnv -> Device -> ActionH u w ()
-rpcHandler mqtt_ Device{devUUID = uuid, devUserName = un} = do
+rpcHandler mqtt_ Device{devUUID = uuid, devKey = key} = do
   payload <- formParam "payload"
   tout <- min 300 <$> safeFormParam "timeout" 300
   cacheHash <- safeFormParam "cache-hash" ""
   cacheTimeout <- safeFormParam "cache-timeout" 10
   let ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
-  mmKey <- getKey
-  r <- liftIO $ ca $ request mqtt mmKey uuid payload tout
+  r <- liftIO $ ca $ request mqtt uuid payload tout
   case r of
     Nothing -> err status500 "request timeout"
     Just v  -> do
@@ -192,4 +157,4 @@ rpcHandler mqtt_ Device{devUUID = uuid, devUserName = un} = do
       when (isjson == "json") $ addHeader "Content-Type" "application/json; charset=utf-8"
       raw v
 
-  where mqtt = if un `elem` mAllowKeys mqtt_ then mqtt_ {mKey = un} else mqtt_
+  where mqtt = if key `elem` mAllowKeys mqtt_ then mqtt_ {mKey = key} else mqtt_

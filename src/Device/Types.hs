@@ -4,7 +4,8 @@
 module Device.Types
   ( Device (..)
   , DeviceID
-  , UserName
+  , Key
+  , KeyID
   , Token
   , UUID
   , Meta
@@ -18,20 +19,23 @@ import           Data.Maybe          (fromMaybe)
 import           Data.Text           (Text)
 import           Database.PSQL.Types (FromRow (..), field)
 
-type DeviceID    = Int64
-type UserName    = Text
-type Token       = Text
-type UUID        = Text
-type Meta        = Value
-type CreatedAt   = Int64
+
+type Key       = Text
+type KeyID     = Int64
+type DeviceID  = Int64
+type Token     = Text
+type UUID      = Text
+type Meta      = Value
+type CreatedAt = Int64
 
 data Device = Device
   { devID        :: DeviceID
-  , devUserName  :: UserName
+  , devKeyId     :: KeyID
   , devToken     :: Token
   , devUUID      :: UUID
   , devMeta      :: Value
   , devPingAt    :: CreatedAt
+  , devKey       :: Key
   , devCreatedAt :: CreatedAt
   }
   deriving (Show)
@@ -39,20 +43,21 @@ data Device = Device
 instance FromRow Device where
   fromRow = do
     devID <- field
-    devUserName <- field
+    devKeyId <- field
     devToken <- field
     devUUID <- field
     devMeta <- fromMaybe Null <$> field
     devCreatedAt <- field
     return Device
       { devPingAt = 0
+      , devKey = ""
       , ..
       }
 
 instance ToJSON Device where
   toJSON Device {..} = object
     [ "id"         .= devID
-    , "username"   .= devUserName
+    , "key"        .= devKey
     , "token"      .= devToken
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
@@ -63,10 +68,10 @@ instance ToJSON Device where
 instance FromJSON Device where
   parseJSON = withObject "Device" $ \o -> do
     devID        <- o .: "id"
-    devUserName  <- o .: "username"
+    devKey       <- o .: "key"
     devToken     <- o .: "token"
     devUUID      <- o .: "uuid"
     devMeta      <- o .: "meta"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
-    return Device{..}
+    return Device{devKeyId = 0, ..}

@@ -5,10 +5,10 @@ module Main
   ( main
   ) where
 
-import           Control.Monad                        (forM_, void, when)
+import           Control.Monad                        (void, when)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
-import           Data.Text                            (pack, unpack)
+import           Data.Text                            (pack)
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
 import           System.Exit                          (exitSuccess)
@@ -30,7 +30,8 @@ import           Haxl.Core                            (GenHaxl, initEnv,
 
 import qualified Data.Yaml                            as Y
 import qualified Device.Config                        as C
-import           Device.MQTT                          (MqttEnv, startMQTT)
+import           Device.MQTT                          (MqttEnv (mAllowKeys),
+                                                       startMQTT)
 
 import           Options.Applicative
 
@@ -102,24 +103,20 @@ program Options { getConfigFile  = confFile
                             $ setHost (Host host) (settings def) }
 
 
-  runIO0 $ forM_ (pack prefix:allowKeys) $ \tp -> do
-    setTablePrefix $ unpack tp
-    void createTable
+  runIO0 $ void createTable
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \key uuid bs force ->
-    runIO0 $ do
-      setTablePrefix $ unpack key
-      updateDeviceMetaByUUID uuid bs force
+  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \_ uuid bs force ->
+    runIO0 $ updateDeviceMetaByUUID uuid bs force
 
   scottyOptsT opts runIO0 (application mqtt)
   where runIO :: SimpleEnv C.Cache -> Int -> Int -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
         runIO env psqlThreads redisThreads m = do
           redisState <- initRedisState redisThreads $ fromString prefix
-          deviceState <- initDeviceState psqlThreads
-          let s = stateSet redisState $ stateSet deviceState stateEmpty
-
+          let s = stateSet redisState
+                $ stateSet (initDeviceState psqlThreads $ fromString prefix)
+                stateEmpty
           env0 <- initEnv s env
           runHaxl env0 m
 
@@ -127,37 +124,12 @@ application :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w) => MqttEnv -> Scotty
 application mqtt = do
   middleware logStdout
 
-  post "/api/devices/" $ addKey createDeviceHandler
-  post "/api/users/:username/devices/" $ addKey createDeviceHandler
+  post "/api/devices/" $ createDeviceHandler allowKeys
+  post "/api/devices/:uuidOrToken/token/" $ requireDevice updateDeviceTokenHandler
+  post "/api/devices/:uuidOrToken/meta/" $ requireDevice updateDeviceMetaHandler
+  get "/api/devices/" $ getDeviceListHandler allowKeys
+  delete "/api/devices/:uuidOrToken/" $ requireDevice (removeDeviceHandler mqtt)
+  get "/api/devices/:uuidOrToken/" $ requireDevice getDeviceHandler
+  post "/api/devices/:uuidOrToken/rpc/" $ requireDevice $ rpcHandler mqtt
 
-  post "/api/devices/:uuidOrToken/token/" $ addKey $
-    requireDevice updateDeviceTokenHandler
-  post "/api/users/:username/devices/:uuidOrToken/token/" $ addKey $
-    requireDevice $ requireOwner updateDeviceTokenHandler
-
-  post "/api/devices/:uuidOrToken/meta/" $ addKey $
-    requireDevice updateDeviceMetaHandler
-  post "/api/users/:username/devices/:uuidOrToken/meta/" $ addKey $
-    requireDevice $ requireOwner updateDeviceMetaHandler
-
-  post "/api/devices/:uuidOrToken/username/" $ addKey $
-    requireDevice updateDeviceUserNameHandler
-
-  get "/api/devices/" $ addKey getDeviceListHandler
-
-  get "/api/users/:username/devices/" $ addKey getDeviceListByNameHandler
-
-  delete "/api/devices/:uuidOrToken/" $ addKey $
-    requireDevice (removeDeviceHandler mqtt)
-  delete "/api/users/:username/devices/:uuidOrToken/" $ addKey $
-    requireDevice $ requireOwner (removeDeviceHandler mqtt)
-
-  get "/api/devices/:uuidOrToken/" $ addKey $
-    requireDevice getDeviceHandler
-  get "/api/users/:username/devices/:uuidOrToken/" $ addKey $
-    requireDevice $ requireOwner getDeviceHandler
-
-  post "/api/devices/:uuidOrToken/rpc/" $ addKey $
-    requireDevice $ rpcHandler mqtt
-  post "/api/users/:username/devices/:uuidOrToken/rpc/" $ addKey $
-    requireDevice $ requireOwner $ rpcHandler mqtt
+  where allowKeys = mAllowKeys mqtt

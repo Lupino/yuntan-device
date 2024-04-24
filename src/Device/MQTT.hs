@@ -78,8 +78,8 @@ genHex n = concatMap w . B.unpack <$> getEntropy n
 
 
 -- request env uuid data timeout
-request :: MqttEnv -> Maybe Text -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
-request MqttEnv {..} mmKey uuid p t = do
+request :: MqttEnv -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
+request MqttEnv {..} uuid p t = do
   reqid <- pack <$> genHex 4
 
   let k = responseKey uuid reqid
@@ -90,7 +90,7 @@ request MqttEnv {..} mmKey uuid p t = do
   case client of
     Nothing -> return Nothing
     Just c -> do
-      case requestTopic (fromMaybe mKey mmKey) uuid reqid of
+      case requestTopic mKey uuid reqid of
         Nothing -> return Nothing
         Just topic -> do
           publish c topic p False

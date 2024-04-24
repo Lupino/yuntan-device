@@ -6,15 +6,19 @@ module Device.DataSource.Device
   , getDevIdByToken
   , getDevIdByUuid
   , getDevIdList
-  , getDevIdListByName
+  , getDevIdListByKey
   , countDevice
-  , countDeviceByName
+  , countDeviceByKey
   , updateDevice
   , removeDevice
+
+  , getDevKeyId
+  , getDevKeyById
   ) where
 
 import           Control.Monad.IO.Class (liftIO)
 import           Data.Int               (Int64)
+import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
 import           Data.Text              (Text)
 import           Data.UnixTime
@@ -29,12 +33,34 @@ import           Device.Types
 devices :: TableName
 devices = "devices"
 
-createDevice :: UserName -> Token -> PSQL DeviceID
-createDevice un token = do
+deviceKeys :: TableName
+deviceKeys = "device_keys"
+
+
+getDevKeyId_ :: Key -> PSQL (Maybe KeyID)
+getDevKeyId_ key = selectOneOnly deviceKeys "id" "devkey = ?" (Only key)
+
+createDevKey :: Key -> PSQL KeyID
+createDevKey key = do
+  t <- liftIO getUnixTime
+  insertRet devices ["devkey", "created_at"] "id" (key, show $ toEpochTime t) 0
+
+getDevKeyId :: Key -> PSQL KeyID
+getDevKeyId key = do
+  mkid <- getDevKeyId_ key
+  case mkid of
+    Nothing  -> createDevKey key
+    Just kid -> pure kid
+
+getDevKeyById :: KeyID -> PSQL Key
+getDevKeyById kid = fromMaybe "" <$> selectOneOnly deviceKeys "devkey" "id = ?" (Only kid)
+
+createDevice :: KeyID -> Token -> PSQL DeviceID
+createDevice kid token = do
   t <- liftIO getUnixTime
   uuid <- liftIO $ toText <$> nextRandom
-  insertRet devices ["username", "token", "uuid", "meta", "created_at"] "id"
-    (un, token, uuid, "{}" :: String, show $ toEpochTime t) 0
+  insertRet devices ["key_id", "token", "uuid", "meta", "created_at"] "id"
+    (kid, token, uuid, "{}" :: String, show $ toEpochTime t) 0
 
 getDevice :: DeviceID -> PSQL (Maybe Device)
 getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
@@ -51,12 +77,12 @@ getDevIdList = selectOnly_ devices "id"
 countDevice :: PSQL Int64
 countDevice = count_ devices
 
-getDevIdListByName :: UserName -> From -> Size -> OrderBy -> PSQL [DeviceID]
-getDevIdListByName un =
-  selectOnly devices "id" "username = ?" (Only un)
+getDevIdListByKey :: KeyID -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByKey kid =
+  selectOnly devices "id" "key_id = ?" (Only kid)
 
-countDeviceByName :: UserName -> PSQL Int64
-countDeviceByName un = count devices "username = ?" (Only un)
+countDeviceByKey :: KeyID -> PSQL Int64
+countDeviceByKey kid = count devices "key_id = ?" (Only kid)
 
 updateDevice :: DeviceID -> String -> Text -> PSQL Int64
 updateDevice devid field value =
