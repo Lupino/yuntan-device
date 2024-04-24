@@ -17,17 +17,17 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
 import qualified Control.Exception          (SomeException, bracket_, try)
 import           Data.Hashable              (Hashable (..))
+import           Data.Int                   (Int64)
 import           Data.IORef                 (IORef, newIORef, readIORef,
                                              writeIORef)
-import           Data.Int                   (Int64)
 import           Data.Maybe                 (fromMaybe)
 import           Data.Pool                  (withResource)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
+import           Database.PostgreSQL.Simple (Connection)
 import           Database.PSQL.Types        (From, HasPSQL, OrderBy, PSQL,
                                              PSQLPool, Size, TablePrefix,
                                              psqlPool, runPSQL, tablePrefix)
-import           Database.PostgreSQL.Simple (Connection)
 import           Device.DataSource.Device
 import           Device.DataSource.Table
 import           Device.Types
@@ -37,7 +37,7 @@ import           Haxl.Core                  hiding (env, fetchReq)
 
 data DeviceReq a where
   CreateTable :: DeviceReq Int64
-  CreateDevice :: UserName -> Token -> Type -> DeviceReq DeviceID
+  CreateDevice :: UserName -> Token -> DeviceReq DeviceID
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
   GetDevIdByToken :: Token -> DeviceReq (Maybe DeviceID)
   GetDevIdByUuid :: UUID -> DeviceReq (Maybe DeviceID)
@@ -45,10 +45,6 @@ data DeviceReq a where
   CountDevice :: DeviceReq Int64
   GetDevIdListByName :: UserName -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
   CountDeviceByName :: UserName -> DeviceReq Int64
-  GetDevIdListByType :: Type -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
-  CountDeviceByType :: Type -> DeviceReq Int64
-  GetDevIdListByNameAndType :: UserName -> Type -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
-  CountDeviceByNameAndType :: UserName -> Type -> DeviceReq Int64
   UpdateDevice :: DeviceID -> String -> Text -> DeviceReq Int64
   RemoveDevice :: DeviceID -> DeviceReq Int64
 
@@ -56,21 +52,17 @@ data DeviceReq a where
 
 deriving instance Eq (DeviceReq a)
 instance Hashable (DeviceReq a) where
-  hashWithSalt s CreateTable                            = hashWithSalt s (1::Int)
-  hashWithSalt s (CreateDevice u t tp)                  = hashWithSalt s (2::Int, u, t, tp)
-  hashWithSalt s (GetDevice i)                          = hashWithSalt s (3::Int, i)
-  hashWithSalt s (GetDevIdByToken t)                    = hashWithSalt s (4::Int, t)
-  hashWithSalt s (GetDevIdByUuid u)                     = hashWithSalt s (5::Int, u)
-  hashWithSalt s (GetDevIdList f si o)                  = hashWithSalt s (6::Int, f, si, o)
-  hashWithSalt s CountDevice                            = hashWithSalt s (7::Int)
-  hashWithSalt s (GetDevIdListByName u f si o)          = hashWithSalt s (8::Int, u, f, si, o)
-  hashWithSalt s (CountDeviceByName u)                  = hashWithSalt s (9::Int, u)
-  hashWithSalt s (GetDevIdListByType t f si o)          = hashWithSalt s (10::Int, t, f, si, o)
-  hashWithSalt s (CountDeviceByType t)                  = hashWithSalt s (11::Int, t)
-  hashWithSalt s (GetDevIdListByNameAndType u t f si o) = hashWithSalt s (12::Int, u, t, f, si, o)
-  hashWithSalt s (CountDeviceByNameAndType u t)         = hashWithSalt s (13::Int, u, t)
-  hashWithSalt s (UpdateDevice i f t)                   = hashWithSalt s (16::Int, i, f, t)
-  hashWithSalt s (RemoveDevice i)                       = hashWithSalt s (17::Int, i)
+  hashWithSalt s CreateTable                   = hashWithSalt s (1::Int)
+  hashWithSalt s (CreateDevice u t)            = hashWithSalt s (2::Int, u, t)
+  hashWithSalt s (GetDevice i)                 = hashWithSalt s (3::Int, i)
+  hashWithSalt s (GetDevIdByToken t)           = hashWithSalt s (4::Int, t)
+  hashWithSalt s (GetDevIdByUuid u)            = hashWithSalt s (5::Int, u)
+  hashWithSalt s (GetDevIdList f si o)         = hashWithSalt s (6::Int, f, si, o)
+  hashWithSalt s CountDevice                   = hashWithSalt s (7::Int)
+  hashWithSalt s (GetDevIdListByName u f si o) = hashWithSalt s (8::Int, u, f, si, o)
+  hashWithSalt s (CountDeviceByName u)         = hashWithSalt s (9::Int, u)
+  hashWithSalt s (UpdateDevice i f t)          = hashWithSalt s (10::Int, i, f, t)
+  hashWithSalt s (RemoveDevice i)              = hashWithSalt s (11::Int, i)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -110,21 +102,17 @@ fetchSync (BlockedFetch req rvar) prefix conn = do
     Right a -> putSuccess rvar a
 
 fetchReq :: DeviceReq a -> PSQL a
-fetchReq CreateTable = createTable
-fetchReq (CreateDevice u t tp)                  = createDevice u t tp
-fetchReq (GetDevice i)                          = getDevice i
-fetchReq (GetDevIdByToken t)                    = getDevIdByToken t
-fetchReq (GetDevIdByUuid u)                     = getDevIdByUuid u
-fetchReq (GetDevIdList f si o)                  = getDevIdList f si o
-fetchReq CountDevice                            = countDevice
-fetchReq (GetDevIdListByName u f si o)          = getDevIdListByName u f si o
-fetchReq (CountDeviceByName u)                  = countDeviceByName u
-fetchReq (GetDevIdListByType t f si o)          = getDevIdListByType t f si o
-fetchReq (CountDeviceByType t)                  = countDeviceByType t
-fetchReq (GetDevIdListByNameAndType u t f si o) = getDevIdListByNameAndType u t f si o
-fetchReq (CountDeviceByNameAndType u t)         = countDeviceByNameAndType u t
-fetchReq (UpdateDevice i f t)                   = updateDevice i f t
-fetchReq (RemoveDevice i)                       = removeDevice i
+fetchReq CreateTable                   = createTable
+fetchReq (CreateDevice u t)            = createDevice u t
+fetchReq (GetDevice i)                 = getDevice i
+fetchReq (GetDevIdByToken t)           = getDevIdByToken t
+fetchReq (GetDevIdByUuid u)            = getDevIdByUuid u
+fetchReq (GetDevIdList f si o)         = getDevIdList f si o
+fetchReq CountDevice                   = countDevice
+fetchReq (GetDevIdListByName u f si o) = getDevIdListByName u f si o
+fetchReq (CountDeviceByName u)         = countDeviceByName u
+fetchReq (UpdateDevice i f t)          = updateDevice i f t
+fetchReq (RemoveDevice i)              = removeDevice i
 
 initDeviceState :: Int -> IO (State DeviceReq)
 initDeviceState threads = do

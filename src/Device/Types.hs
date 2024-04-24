@@ -8,7 +8,6 @@ module Device.Types
   , Token
   , UUID
   , Meta
-  , Type
   , CreatedAt
   ) where
 
@@ -24,7 +23,6 @@ type UserName    = Text
 type Token       = Text
 type UUID        = Text
 type Meta        = Value
-type Type        = Text
 type CreatedAt   = Int64
 
 data Device = Device
@@ -33,7 +31,6 @@ data Device = Device
   , devToken     :: Token
   , devUUID      :: UUID
   , devMeta      :: Value
-  , devType      :: Type
   , devPingAt    :: CreatedAt
   , devCreatedAt :: CreatedAt
   }
@@ -46,7 +43,6 @@ instance FromRow Device where
     devToken <- field
     devUUID <- field
     devMeta <- fromMaybe Null <$> field
-    devType <- field
     devCreatedAt <- field
     return Device
       { devPingAt = 0
@@ -60,7 +56,6 @@ instance ToJSON Device where
     , "token"      .= devToken
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
-    , "type"       .= devType
     , "ping_at"    .= devPingAt
     , "created_at" .= devCreatedAt
     ]
@@ -72,7 +67,6 @@ instance FromJSON Device where
     devToken     <- o .: "token"
     devUUID      <- o .: "uuid"
     devMeta      <- o .: "meta"
-    devType      <- o .: "type"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
     return Device{..}

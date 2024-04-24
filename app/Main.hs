@@ -135,11 +135,6 @@ application mqtt = do
   post "/api/users/:username/devices/:uuidOrToken/token/" $ addKey $
     requireDevice $ requireOwner updateDeviceTokenHandler
 
-  post "/api/devices/:uuidOrToken/type/" $ addKey $
-    requireDevice updateDeviceTypeHandler
-  post "/api/users/:username/devices/:uuidOrToken/type/" $ addKey $
-    requireDevice $ requireOwner updateDeviceTypeHandler
-
   post "/api/devices/:uuidOrToken/meta/" $ addKey $
     requireDevice updateDeviceMetaHandler
   post "/api/users/:username/devices/:uuidOrToken/meta/" $ addKey $

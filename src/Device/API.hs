@@ -7,11 +7,8 @@ module Device.API
   , getDevice
   , countDevice
   , countDeviceByName
-  , countDeviceByType
-  , countDeviceByNameAndType
   , updateDeviceMeta
   , updateDeviceToken
-  , updateDeviceType
   , updateDeviceUserName
   , removeDevice
   , updateDeviceMetaByUUID
@@ -39,9 +36,7 @@ import           Device.Config          (Cache, redisEnv)
 import qualified Device.DataSource      as DS (setTablePrefix)
 import           Device.RawAPI          as X (createTable, getDevIdByToken,
                                               getDevIdByUuid, getDevIdList,
-                                              getDevIdListByName,
-                                              getDevIdListByNameAndType,
-                                              getDevIdListByType)
+                                              getDevIdListByName)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (Env (..), GenHaxl, env, stateGet)
@@ -74,31 +69,17 @@ genCountKey k = fromString $ "count:" ++ k
 genCountKeyByName :: UserName -> ByteString
 genCountKeyByName un = genCountKey ("device_name_" ++ unpack un)
 
-genCountKeyByType :: Type -> ByteString
-genCountKeyByType tp = genCountKey ("device_type_" ++ unpack tp)
-
-genCountKeyByNameAndType :: UserName -> Type -> ByteString
-genCountKeyByNameAndType un tp = genCountKey ("device_name_" ++ unpack un ++ "_type_" ++ unpack tp)
-
 unCacheCount :: HasOtherEnv Cache u => String -> GenHaxl u w a -> GenHaxl u w a
 unCacheCount k io = io $> remove redisEnv (genCountKey k)
 
 unCacheCountByName :: HasOtherEnv Cache u => UserName -> GenHaxl u w a -> GenHaxl u w a
 unCacheCountByName un = unCacheCount ("device_name_" ++ unpack un)
 
-unCacheCountByType :: HasOtherEnv Cache u => Type -> GenHaxl u w a -> GenHaxl u w a
-unCacheCountByType tp = unCacheCount ("device_type_" ++ unpack tp)
-
-unCacheCountByNameAndType :: HasOtherEnv Cache u => UserName -> Type -> GenHaxl u w a -> GenHaxl u w a
-unCacheCountByNameAndType un tp = unCacheCount ("device_name_" ++ unpack un ++ "_type_" ++ unpack tp)
-
-createDevice :: (HasPSQL u, HasOtherEnv Cache u) => UserName -> Token -> Type ->  GenHaxl u w DeviceID
-createDevice un t tp =
-  unCacheCountByNameAndType un tp
-  $ unCacheCountByType tp
-  $ unCacheCountByName un
+createDevice :: (HasPSQL u, HasOtherEnv Cache u) => UserName -> Token ->  GenHaxl u w DeviceID
+createDevice un t =
+  unCacheCountByName un
   $ unCacheCount "device"
-  $ RawAPI.createDevice un t tp
+  $ RawAPI.createDevice un t
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w (Maybe Device)
 getDevice devid = do
@@ -117,32 +98,10 @@ countDeviceByName un =
   cached' redisEnv (genCountKeyByName un)
   $ RawAPI.countDeviceByName un
 
-countDeviceByType :: (HasPSQL u, HasOtherEnv Cache u) => Type -> GenHaxl u w Int64
-countDeviceByType tp =
-  cached' redisEnv (genCountKeyByType tp)
-  $ RawAPI.countDeviceByType tp
-
-countDeviceByNameAndType :: (HasPSQL u, HasOtherEnv Cache u) => UserName -> Type -> GenHaxl u w Int64
-countDeviceByNameAndType un tp =
-  cached' redisEnv (genCountKeyByNameAndType un tp)
-  $ RawAPI.countDeviceByNameAndType un tp
-
 updateDeviceMeta
   :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> Meta -> GenHaxl u w Int64
 updateDeviceMeta devid = updateDevice devid "meta" . decodeUtf8 . LB.toStrict . encode
-
-updateDeviceType :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> Type -> GenHaxl u w Int64
-updateDeviceType devid tp = do
-  dev' <- getDevice devid
-  case dev' of
-    Nothing -> return 0
-    Just dev ->
-      unCacheCountByType (devType dev)
-      $ unCacheCountByType tp
-      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
-      $ unCacheCountByNameAndType (devUserName dev) tp
-      $ updateDevice devid "type" tp
 
 updateDeviceToken :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> Token -> GenHaxl u w Int64
 updateDeviceToken devid = updateDevice devid "token"
@@ -154,7 +113,6 @@ updateDeviceUserName devid un = do
     Nothing -> return 0
     Just dev ->
       unCacheCountByName (devUserName dev)
-      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
       $ updateDevice devid "username" un
 
 updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -> GenHaxl u w Int64
@@ -167,9 +125,7 @@ removeDevice devid = do
     Nothing -> return 0
     Just dev ->
       unCacheDevice devid
-      $ unCacheCountByType (devType dev)
       $ unCacheCountByName (devUserName dev)
-      $ unCacheCountByNameAndType (devUserName dev) (devType dev)
       $ unCacheCount "device"
       $ RawAPI.removeDevice devid
 

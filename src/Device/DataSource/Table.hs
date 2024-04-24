@@ -16,7 +16,6 @@ createDeviceTable =
     , "token VARCHAR(128) NOT NULL"
     , "uuid VARCHAR(128) NOT NULL"
     , "meta JSON NOT NULL"
-    , "type VARCHAR(128) NOT NULL"
     , "created_at INT NOT NULL"
     ]
 
@@ -27,6 +26,5 @@ createTable =
     [ createDeviceTable
     , createIndex True "devices" "device_token" ["token"]
     , createIndex True "devices" "device_uuid" ["uuid"]
-    , createIndex False "devices" "device_username_type" ["username", "type"]
-    , createIndex False "devices" "device_type" ["type"]
+    , createIndex False "devices" "device_username" ["username"]
     ]
