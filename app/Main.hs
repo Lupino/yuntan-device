@@ -128,11 +128,14 @@ application mqtt = do
   middleware logStdout
 
   post "/api/devices/" $ createDeviceHandler allowKeys
-  post "/api/devices/:uuidOrToken/token/" $ requireDevice updateDeviceTokenHandler
-  post "/api/devices/:uuidOrToken/meta/" $ requireDevice updateDeviceMetaHandler
+  post "/api/devices/:ident/token/" $ requireDevice $ updateDeviceHandler "token"
+  post "/api/devices/:ident/uuid/" $ requireDevice $ updateDeviceHandler "uuid"
+  post "/api/devices/:ident/addr/" $ requireDevice $ updateDeviceHandler "addr"
+  post "/api/devices/:ident/gw_id/" $ requireDevice $ updateDeviceHandler "gw_id"
+  post "/api/devices/:ident/meta/" $ requireDevice updateDeviceMetaHandler
   get "/api/devices/" $ getDeviceListHandler allowKeys
-  delete "/api/devices/:uuidOrToken/" $ requireDevice (removeDeviceHandler mqtt)
-  get "/api/devices/:uuidOrToken/" $ requireDevice getDeviceHandler
-  post "/api/devices/:uuidOrToken/rpc/" $ requireDevice $ rpcHandler mqtt
+  delete "/api/devices/:ident/" $ requireDevice (removeDeviceHandler mqtt)
+  get "/api/devices/:ident/" $ requireDevice getDeviceHandler
+  post "/api/devices/:ident/rpc/" $ requireDevice $ rpcHandler mqtt
 
   where allowKeys = mAllowKeys mqtt

@@ -5,10 +5,11 @@
 module Device.API
   ( getDevice
   , updateDeviceMeta
-  , updateDeviceToken
+  , updateDevice
   , removeDevice
   , updateDeviceMetaByUUID
-  , getDevKeyId
+
+  , getDevId
   , module X
   ) where
 
@@ -22,23 +23,27 @@ import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, member)
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Int               (Int64)
-import           Data.Maybe             (fromMaybe)
+import           Data.Maybe             (fromMaybe, isJust)
 import           Data.String            (fromString)
 import           Data.Text              (Text, replace)
+import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Data.UnixTime
+import           Data.UUID              (fromText)
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
-import           Device.RawAPI          as X (countDevice, countDeviceByKey,
-                                              createDevice, createTable,
-                                              getDevIdByAddr, getDevIdByToken,
-                                              getDevIdByUuid, getDevIdList,
+import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
+                                              countDeviceByKey, createDevice,
+                                              createTable, getDevIdByAddr,
+                                              getDevIdByToken, getDevIdByUuid,
+                                              getDevIdList, getDevIdListByGw,
                                               getDevIdListByKey, getDevKeyById,
                                               getDevKeyId)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (GenHaxl)
 import           Haxl.RedisCache        (cached, get, remove, set)
+import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
 
 
@@ -116,8 +121,13 @@ updateDeviceMetaByUUID uuid meta0 force = do
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
 getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
 
-getDevKeyId :: (HasPSQL u, HasOtherEnv Cache u) => Key -> GenHaxl u w KeyID
-getDevKeyId key = cached' redisEnv (genDevKeyIdKey key) $ RawAPI.getDevKeyId key
 
-getDevKeyById :: (HasPSQL u, HasOtherEnv Cache u) => KeyID -> GenHaxl u w Key
-getDevKeyById kid = cached' redisEnv (genDevKeyByIdKey kid) $ RawAPI.getDevKeyById kid
+isUUID :: Text -> Bool
+isUUID = isJust . fromText
+
+getDevId :: HasPSQL u => Text -> GenHaxl u w (Maybe DeviceID)
+getDevId ident
+  | T.take 3 ident == "id_" = pure $ readMaybe $ T.unpack $ T.drop 3 ident
+  | T.take 5 ident == "addr_" = getDevIdByAddr $ T.drop 5 ident
+  | isUUID ident = getDevIdByUuid ident
+  | otherwise = getDevIdByToken ident

@@ -15,6 +15,8 @@ createDeviceTable =
     , "key_id INT NOT NULL"
     , "token VARCHAR(128) NOT NULL"
     , "uuid VARCHAR(128) NOT NULL"
+    , "addr VARCHAR(10) NOT NULL"
+    , "gw_id INT NOT NULL"
     , "meta JSON NOT NULL"
     , "created_at INT NOT NULL"
     ]
@@ -35,6 +37,8 @@ createTable =
     , createIndex True "devices" "device_token" ["token"]
     , createIndex True "devices" "device_uuid" ["uuid"]
     , createIndex False "devices" "device_key_id" ["key_id"]
+    , createIndex True "devices" "device_addr" ["addr"]
+    , createIndex False "devices" "device_gw_id" ["gw_id"]
     , createDeviceKeyTable
     , createIndex True "device_keys" "device_key_devkey" ["devkey"]
     ]

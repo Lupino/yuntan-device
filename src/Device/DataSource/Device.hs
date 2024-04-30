@@ -14,6 +14,10 @@ module Device.DataSource.Device
 
   , getDevKeyId
   , getDevKeyById
+
+  , getDevIdByAddr
+  , getDevIdListByGw
+  , countDevAddrByGw
   ) where
 
 import           Control.Monad.IO.Class (liftIO)
@@ -55,12 +59,19 @@ getDevKeyId key = do
 getDevKeyById :: KeyID -> PSQL Key
 getDevKeyById kid = fromMaybe "" <$> selectOneOnly deviceKeys "devkey" "id = ?" (Only kid)
 
-createDevice :: KeyID -> Token -> PSQL DeviceID
-createDevice kid token = do
+createDevice :: KeyID -> Token -> Addr -> PSQL DeviceID
+createDevice kid token addr = do
   t <- liftIO getUnixTime
   uuid <- liftIO $ toText <$> nextRandom
-  insertRet devices ["key_id", "token", "uuid", "meta", "created_at"] "id"
-    (kid, token, uuid, "{}" :: String, show $ toEpochTime t) 0
+  insertRet devices ["key_id", "token", "uuid", "addr", "gw_id", "meta", "created_at"] "id"
+    (kid, token, uuid, addr, gwid, meta, show $ toEpochTime t) 0
+
+  where meta :: String
+        meta = "{}"
+
+        gwid :: Int
+        gwid = 0
+
 
 getDevice :: DeviceID -> PSQL (Maybe Device)
 getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
@@ -90,3 +101,13 @@ updateDevice devid field value =
 
 removeDevice :: DeviceID -> PSQL Int64
 removeDevice devid = delete devices "id = ?" (Only devid)
+
+getDevIdByAddr :: Addr -> PSQL (Maybe DeviceID)
+getDevIdByAddr addr = selectOneOnly devices "id" "addr = ?" (Only addr)
+
+getDevIdListByGw :: DeviceID -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByGw gwid =
+  selectOnly devices "id" "gw_id = ?" (Only gwid)
+
+countDevAddrByGw :: DeviceID -> PSQL Int64
+countDevAddrByGw gwid = count devices "gw_id = ?" (Only gwid)

@@ -33,7 +33,7 @@ import           Haxl.Core                  hiding (env, fetchReq)
 
 data DeviceReq a where
   CreateTable :: DeviceReq Int64
-  CreateDevice :: KeyID -> Token -> DeviceReq DeviceID
+  CreateDevice :: KeyID -> Token -> Addr -> DeviceReq DeviceID
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
   GetDevIdByToken :: Token -> DeviceReq (Maybe DeviceID)
   GetDevIdByUuid :: UUID -> DeviceReq (Maybe DeviceID)
@@ -45,13 +45,16 @@ data DeviceReq a where
   RemoveDevice :: DeviceID -> DeviceReq Int64
   GetDevKeyID :: Key -> DeviceReq KeyID
   GetDevKeyByID :: KeyID -> DeviceReq Key
+  GetDevIdByAddr   :: Addr -> DeviceReq (Maybe DeviceID)
+  GetDevIdListByGw :: DeviceID -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
+  CountDevAddrByGw :: DeviceID -> DeviceReq Int64
 
   deriving (Typeable)
 
 deriving instance Eq (DeviceReq a)
 instance Hashable (DeviceReq a) where
   hashWithSalt s CreateTable                  = hashWithSalt s (1::Int)
-  hashWithSalt s (CreateDevice k t)           = hashWithSalt s (2::Int, k, t)
+  hashWithSalt s (CreateDevice k t a)         = hashWithSalt s (2::Int, k, t, a)
   hashWithSalt s (GetDevice i)                = hashWithSalt s (3::Int, i)
   hashWithSalt s (GetDevIdByToken t)          = hashWithSalt s (4::Int, t)
   hashWithSalt s (GetDevIdByUuid u)           = hashWithSalt s (5::Int, u)
@@ -63,6 +66,9 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (RemoveDevice i)             = hashWithSalt s (11::Int, i)
   hashWithSalt s (GetDevKeyID k)              = hashWithSalt s (12::Int, k)
   hashWithSalt s (GetDevKeyByID k)            = hashWithSalt s (13::Int, k)
+  hashWithSalt s (GetDevIdByAddr a)           = hashWithSalt s (16 :: Int, a)
+  hashWithSalt s (GetDevIdListByGw g f si o)  = hashWithSalt s (17 :: Int, g, f, si, o)
+  hashWithSalt s (CountDevAddrByGw g)         = hashWithSalt s (18 :: Int, g)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -102,7 +108,7 @@ fetchSync (BlockedFetch req rvar) prefix conn = do
 
 fetchReq :: DeviceReq a -> PSQL a
 fetchReq CreateTable                  = createTable
-fetchReq (CreateDevice k t)           = createDevice k t
+fetchReq (CreateDevice k t a)         = createDevice k t a
 fetchReq (GetDevice i)                = getDevice i
 fetchReq (GetDevIdByToken t)          = getDevIdByToken t
 fetchReq (GetDevIdByUuid u)           = getDevIdByUuid u
@@ -114,6 +120,9 @@ fetchReq (UpdateDevice i f t)         = updateDevice i f t
 fetchReq (RemoveDevice i)             = removeDevice i
 fetchReq (GetDevKeyID k)              = getDevKeyId k
 fetchReq (GetDevKeyByID k)            = getDevKeyById k
+fetchReq (GetDevIdByAddr a)           = getDevIdByAddr a
+fetchReq (GetDevIdListByGw g f si o)  = getDevIdListByGw g f si o
+fetchReq (CountDevAddrByGw g)         = countDevAddrByGw g
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq
 initDeviceState = DeviceState

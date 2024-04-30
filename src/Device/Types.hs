@@ -10,10 +10,11 @@ module Device.Types
   , UUID
   , Meta
   , CreatedAt
+  , Addr
   ) where
 
 import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
-                                      object, withObject, (.:), (.=))
+                                      object, withObject, (.:), (.:?), (.=))
 import           Data.Int            (Int64)
 import           Data.Maybe          (fromMaybe)
 import           Data.Text           (Text)
@@ -22,6 +23,7 @@ import           Database.PSQL.Types (FromRow (..), field)
 
 type Key       = Text
 type KeyID     = Int64
+type Addr      = Text
 type DeviceID  = Int64
 type Token     = Text
 type UUID      = Text
@@ -33,6 +35,8 @@ data Device = Device
   , devKeyId     :: KeyID
   , devToken     :: Token
   , devUUID      :: UUID
+  , devAddr      :: Addr
+  , devGwId      :: DeviceID
   , devMeta      :: Value
   , devPingAt    :: CreatedAt
   , devKey       :: Key
@@ -46,6 +50,8 @@ instance FromRow Device where
     devKeyId <- field
     devToken <- field
     devUUID <- field
+    devAddr <- field
+    devGwId <- field
     devMeta <- fromMaybe Null <$> field
     devCreatedAt <- field
     return Device
@@ -61,6 +67,8 @@ instance ToJSON Device where
     , "token"      .= devToken
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
+    , "addr"       .= devAddr
+    , "gw_id"      .= devGwId
     , "ping_at"    .= devPingAt
     , "created_at" .= devCreatedAt
     ]
@@ -71,6 +79,8 @@ instance FromJSON Device where
     devKey       <- o .: "key"
     devToken     <- o .: "token"
     devUUID      <- o .: "uuid"
+    devAddr      <- o .: "addr"
+    devGwId      <- o .: "gw_id"
     devMeta      <- o .: "meta"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"

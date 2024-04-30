@@ -12,6 +12,10 @@ module Device.RawAPI
   , removeDevice
   , getDevKeyId
   , getDevKeyById
+
+  , getDevIdByAddr
+  , getDevIdListByGw
+  , countDevAddrByGw
   ) where
 
 import           Data.Int            (Int64)
@@ -24,8 +28,8 @@ import           Haxl.Core           (GenHaxl, dataFetch, uncachedRequest)
 createTable :: HasPSQL u => GenHaxl u w Int64
 createTable = uncachedRequest CreateTable
 
-createDevice :: HasPSQL u => KeyID -> Token ->  GenHaxl u w DeviceID
-createDevice kid t = uncachedRequest (CreateDevice kid t)
+createDevice :: HasPSQL u => KeyID -> Token -> Addr ->  GenHaxl u w DeviceID
+createDevice kid token addr = uncachedRequest (CreateDevice kid token addr)
 
 getDevice :: HasPSQL u => DeviceID -> GenHaxl u w (Maybe Device)
 getDevice devid = dataFetch (GetDevice devid)
@@ -59,3 +63,13 @@ getDevKeyId key = dataFetch (GetDevKeyID key)
 
 getDevKeyById :: HasPSQL u => KeyID -> GenHaxl u w Key
 getDevKeyById kid = dataFetch (GetDevKeyByID kid)
+
+
+getDevIdByAddr :: HasPSQL u => Addr -> GenHaxl u w (Maybe DeviceID)
+getDevIdByAddr addr = dataFetch (GetDevIdByAddr addr)
+
+getDevIdListByGw :: HasPSQL u => DeviceID -> From -> Size -> OrderBy -> GenHaxl u w [DeviceID]
+getDevIdListByGw gwid f si o = dataFetch (GetDevIdListByGw gwid f si o)
+
+countDevAddrByGw :: HasPSQL u => DeviceID -> GenHaxl u w Int64
+countDevAddrByGw gwid = dataFetch (CountDevAddrByGw gwid)
