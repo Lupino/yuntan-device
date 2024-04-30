@@ -10,6 +10,7 @@ module Device.API
   , updateDeviceMetaByUUID
 
   , getDevId
+  , randomAddr
   , module X
   ) where
 
@@ -21,11 +22,12 @@ import           Data.Aeson             (Value (Object), decode, encode, object,
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, member)
 import           Data.ByteString        (ByteString)
+import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Int               (Int64)
 import           Data.Maybe             (fromMaybe, isJust)
 import           Data.String            (fromString)
-import           Data.Text              (Text, replace)
+import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Data.UnixTime
@@ -43,6 +45,7 @@ import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (GenHaxl)
 import           Haxl.RedisCache        (cached, get, remove, set)
+import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
 
@@ -128,3 +131,24 @@ getDevId ident
   | T.take 5 ident == "addr_" = getDevIdByAddr $ Addr $ T.drop 5 ident
   | T.take 6 ident == "token_" = getDevIdByToken $ Token $ T.drop 6 ident
   | otherwise = getDevIdByUuid $ UUID ident
+
+
+toHex :: ByteString -> Text
+toHex = toLower . decodeUtf8 . B16.encode
+
+getNonZeroAddr :: IO Addr
+getNonZeroAddr = do
+  addr <- Addr . toHex <$> getEntropy 4
+  if addr == zeroAddr then getNonZeroAddr
+                      else return addr
+
+  where zeroAddr = Addr "00000000"
+
+
+randomAddr :: HasPSQL u => GenHaxl u w Addr
+randomAddr = do
+  addr <- liftIO getNonZeroAddr
+  mdevid <- getDevIdByAddr addr
+  case mdevid of
+    Nothing -> pure addr
+    Just _  -> randomAddr

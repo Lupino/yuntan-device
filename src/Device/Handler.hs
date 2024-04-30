@@ -73,11 +73,10 @@ createDeviceHandler allowKeys = do
   if key `elem` allowKeys then do
     kid <- lift $ getDevKeyId key
     token <- Token <$> formParam "token"
-    addr <- Addr <$> formParam "addr"
-    checkUsed (getDevIdByToken token) "token is already used" $
-      checkUsed (getDevIdByAddr addr) "addr is already used" $ do
-        devid <- lift $ createDevice kid token addr
-        json =<< lift (getDevice devid)
+    addr <- lift randomAddr
+    checkUsed (getDevIdByToken token) "token is already used" $ do
+      devid <- lift $ createDevice kid token addr
+      json =<< lift (getDevice devid)
 
   else errBadRequest "key is invalid"
 
