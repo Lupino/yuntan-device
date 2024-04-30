@@ -3,10 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Device.API
-  ( createDevice
-  , getDevice
-  , countDevice
-  , countDeviceByKey
+  ( getDevice
   , updateDeviceMeta
   , updateDeviceToken
   , removeDevice
@@ -32,13 +29,16 @@ import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Data.UnixTime
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
-import           Device.RawAPI          as X (createTable, getDevIdByToken,
+import           Device.RawAPI          as X (countDevice, countDeviceByKey,
+                                              createDevice, createTable,
+                                              getDevIdByAddr, getDevIdByToken,
                                               getDevIdByUuid, getDevIdList,
-                                              getDevIdListByKey)
+                                              getDevIdListByKey, getDevKeyById,
+                                              getDevKeyId)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, remove, set)
+import           Haxl.RedisCache        (cached, get, remove, set)
 import           Web.Scotty.Haxl        ()
 
 
@@ -57,32 +57,8 @@ genPingAtKey devid = fromString $ "ping_at:" ++ show devid
 genDeviceKey :: DeviceID -> ByteString
 genDeviceKey devid = fromString $ "device:" ++ show devid
 
-genDevKeyIdKey :: Key -> ByteString
-genDevKeyIdKey key = "devkey:" <> encodeUtf8 key
-
-genDevKeyByIdKey :: KeyID -> ByteString
-genDevKeyByIdKey kid = fromString $ "devkeyid:" ++ show kid
-
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
-
-genCountKey :: String -> ByteString
-genCountKey k = fromString $ "count:" ++ k
-
-genCountKeyByKey :: KeyID -> ByteString
-genCountKeyByKey kid = genCountKey ("device_name_" ++ show kid)
-
-unCacheCount :: HasOtherEnv Cache u => String -> GenHaxl u w a -> GenHaxl u w a
-unCacheCount k io = io $> remove redisEnv (genCountKey k)
-
-unCacheCountByKey :: HasOtherEnv Cache u => KeyID -> GenHaxl u w a -> GenHaxl u w a
-unCacheCountByKey kid = unCacheCount ("device_name_" ++ show kid)
-
-createDevice :: (HasPSQL u, HasOtherEnv Cache u) => KeyID -> Token ->  GenHaxl u w DeviceID
-createDevice kid t =
-  unCacheCountByKey kid
-  $ unCacheCount "device"
-  $ RawAPI.createDevice kid t
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w (Maybe Device)
 getDevice devid = do
@@ -93,14 +69,6 @@ getDevice devid = do
       pingAt <- getPingAt devid
       key <- getDevKeyById (devKeyId dev)
       pure $ Just dev { devPingAt = pingAt, devKey = key }
-
-countDevice :: (HasPSQL u, HasOtherEnv Cache u) => GenHaxl u w Int64
-countDevice = cached' redisEnv (genCountKey "device") RawAPI.countDevice
-
-countDeviceByKey :: (HasPSQL u, HasOtherEnv Cache u) => KeyID -> GenHaxl u w Int64
-countDeviceByKey kid =
-  cached' redisEnv (genCountKeyByKey kid)
-  $ RawAPI.countDeviceByKey kid
 
 updateDeviceMeta
   :: (HasPSQL u, HasOtherEnv Cache u)
@@ -114,15 +82,7 @@ updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -
 updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
-removeDevice devid = do
-  dev' <- getDevice devid
-  case dev' of
-    Nothing -> return 0
-    Just dev ->
-      unCacheDevice devid
-      $ unCacheCountByKey (devKeyId dev)
-      $ unCacheCount "device"
-      $ RawAPI.removeDevice devid
+removeDevice devid = unCacheDevice devid $ RawAPI.removeDevice devid
 
 filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
