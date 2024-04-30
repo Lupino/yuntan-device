@@ -47,7 +47,7 @@ getDevKeyId_ key = selectOneOnly deviceKeys "id" "devkey = ?" (Only key)
 createDevKey :: Key -> PSQL KeyID
 createDevKey key = do
   t <- liftIO getUnixTime
-  insertRet devices ["devkey", "created_at"] "id" (key, show $ toEpochTime t) 0
+  insertRet deviceKeys ["devkey", "created_at"] "id" (key, show $ toEpochTime t) 0
 
 getDevKeyId :: Key -> PSQL KeyID
 getDevKeyId key = do

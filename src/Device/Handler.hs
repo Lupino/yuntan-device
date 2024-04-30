@@ -60,8 +60,8 @@ checkUsed
 checkUsed doCheck errMsg next = do
   v <- lift doCheck
   case v of
-    Nothing -> errBadRequest errMsg
-    Just _  -> next
+    Nothing -> next
+    Just _  -> errBadRequest errMsg
 
 
 -- POST /api/devices/
@@ -69,11 +69,11 @@ createDeviceHandler
   :: (HasPSQL u, HasOtherEnv Cache u)
   => [Key] -> ActionH u w ()
 createDeviceHandler allowKeys = do
-  key <- formParam "key"
+  key <- Key <$> formParam "key"
   if key `elem` allowKeys then do
     kid <- lift $ getDevKeyId key
-    token <- formParam "token"
-    addr <- formParam "addr"
+    token <- Token <$> formParam "token"
+    addr <- Addr <$> formParam "addr"
     checkUsed (getDevIdByToken token) "token is already used" $
       checkUsed (getDevIdByAddr addr) "addr is already used" $ do
         devid <- lift $ createDevice kid token addr
@@ -102,8 +102,8 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
 -- GET /api/devices/
 getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
 getDeviceListHandler allowKeys = do
-  key <- safeQueryParam "key" ""
-  gwid <- safeQueryParam "gw_id" 0
+  key <- Key <$> safeQueryParam "key" ""
+  gwid <- DeviceID <$> safeQueryParam "gw_id" 0
   if key `elem` allowKeys then do
     kid <- lift $ getDevKeyId key
     resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)

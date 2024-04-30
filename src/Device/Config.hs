@@ -15,10 +15,10 @@ module Device.Config
 
 import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
                                        (.:), (.:?))
-import           Data.Text            (Text)
 import           Database.PSQL.Config (PSQL (..), genPSQLPool)
 import           Database.PSQL.Types  (HasOtherEnv, otherEnv)
 import           Database.Redis       (Connection)
+import           Device.Types         (Key)
 import           Haxl.RedisConfig     (RedisConfig (..), defaultRedisConfig,
                                        genRedisConnection)
 import           Network.URI          (URI, parseURI)
@@ -27,7 +27,7 @@ data Config = Config
     { psqlConfig  :: PSQL
     , mqttConfig  :: URI
     , redisConfig :: RedisConfig
-    , allowKeys   :: [Text]
+    , allowKeys   :: [Key]
     }
     deriving (Show)
 

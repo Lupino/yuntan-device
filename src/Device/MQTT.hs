@@ -22,8 +22,9 @@ import           Data.Cache             (Cache (..), newCache)
 import qualified Data.Cache             as Cache (deleteSTM, insert', insertSTM,
                                                   lookupSTM, purgeExpired)
 import           Data.Int               (Int64)
-import           Data.Maybe             (catMaybes, fromMaybe)
+import           Data.Maybe             (catMaybes)
 import           Data.Text              (Text, append, pack, splitOn)
+import           Device.Types           (Key (..), UUID (..))
 import           Network.MQTT.Client
 import           Network.MQTT.Topic     (Filter, mkFilter, mkTopic, unTopic)
 import           Network.URI            (URI, uriFragment)
@@ -36,39 +37,39 @@ type ResponseCache = Cache Text (Maybe ByteString)
 type RequestCache  = Cache Text (Maybe ByteString)
 
 data MqttEnv = MqttEnv
-  { mKey       :: Text -- the service key
+  { mKey       :: Key -- the service key
   , mClient    :: TVar (Maybe MQTTClient)
   , mResCache  :: ResponseCache
   , mReqCache  :: RequestCache
-  , mAllowKeys :: [Text]
+  , mAllowKeys :: [Key]
   }
 
 -- /:key/:uuid/request/:requestid
-requestTopic :: Text -> Text -> Text -> Maybe Topic
-requestTopic k uid rid = mkTopic $ "/" <> k <> "/" <> uid <> "/request/" <> rid
+requestTopic :: Key -> UUID -> Text -> Maybe Topic
+requestTopic k uid rid = mkTopic $ "/" <> unKey k <> "/" <> unUUID uid <> "/request/" <> rid
 
 responseKey :: Text -> Text -> Text
 responseKey = append
 
 -- /:key/:uuid/response/:responseid
-responseFilter :: Text -> Maybe Filter
-responseFilter k = mkFilter $ "/" <> k <> "/+/response/+"
+responseFilter :: Key -> Maybe Filter
+responseFilter k = mkFilter $ "/" <> unKey k <> "/+/response/+"
 
 -- /:key/:uuid/telemetry
-telemetryFilter :: Text -> Maybe Filter
-telemetryFilter k = mkFilter $ "/" <> k <> "/+/telemetry"
+telemetryFilter :: Key -> Maybe Filter
+telemetryFilter k = mkFilter $ "/" <> unKey k <> "/+/telemetry"
 
 -- /:key/:uuid/ping
-pingFilter :: Text -> Maybe Filter
-pingFilter k = mkFilter $ "/" <> k <> "/+/ping"
+pingFilter :: Key -> Maybe Filter
+pingFilter k = mkFilter $ "/" <> unKey k <> "/+/ping"
 
 -- /:key/:uuid/attributes
-attrFilter :: Text -> Maybe Filter
-attrFilter k = mkFilter $ "/" <> k <> "/+/attributes"
+attrFilter :: Key -> Maybe Filter
+attrFilter k = mkFilter $ "/" <> unKey k <> "/+/attributes"
 
 -- /:key/:uuid/drop
-dropTopic :: Text -> Text -> Maybe Topic
-dropTopic k uid  = mkTopic $ "/" <> k <> "/" <> uid <> "/drop"
+dropTopic :: Key -> UUID -> Maybe Topic
+dropTopic k uuid  = mkTopic $ "/" <> unKey k <> "/" <> unUUID uuid <> "/drop"
 
 genHex :: Int -> IO String
 genHex n = concatMap w . B.unpack <$> getEntropy n
@@ -78,11 +79,11 @@ genHex n = concatMap w . B.unpack <$> getEntropy n
 
 
 -- request env uuid data timeout
-request :: MqttEnv -> Text -> ByteString -> Int64 -> IO (Maybe ByteString)
+request :: MqttEnv -> UUID -> ByteString -> Int64 -> IO (Maybe ByteString)
 request MqttEnv {..} uuid p t = do
   reqid <- pack <$> genHex 4
 
-  let k = responseKey uuid reqid
+  let k = responseKey (unUUID uuid) reqid
 
   Cache.insert' mResCache (Just $ TimeSpec t 0) k Nothing
 
@@ -108,7 +109,7 @@ request MqttEnv {..} uuid p t = do
 
 
 -- sendDrop env uuid
-sendDrop :: MqttEnv -> Text -> IO ()
+sendDrop :: MqttEnv -> UUID -> IO ()
 sendDrop MqttEnv {..} uuid = do
   client <- readTVarIO mClient
   case client of
@@ -141,7 +142,7 @@ cacheAble MqttEnv {..} h t io = do
           return $ Just vo
 
 messageCallback
-  :: (Text -> Text -> ByteString -> Bool -> IO ())
+  :: (Key -> UUID -> ByteString -> Bool -> IO ())
   -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
 messageCallback saveAttributes resCache _ topic payload _ =
   case splitOn "/" (unTopic topic) of
@@ -151,27 +152,27 @@ messageCallback saveAttributes resCache _ topic payload _ =
       let t = case defaultExpiration resCache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
-      saveAttributes key uuid payload False
+      saveAttributes (Key key) (UUID uuid) payload False
       atomically $ do
         r <- Cache.lookupSTM True k resCache now
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:key:uuid:"attributes":_) -> saveAttributes key uuid payload True
-    (_:key:uuid:"telemetry":_)  -> saveAttributes key uuid online True
-    (_:key:uuid:"ping":_)       -> saveAttributes key uuid online True
+    (_:key:uuid:"attributes":_) -> saveAttributes (Key key) (UUID uuid) payload True
+    (_:key:uuid:"telemetry":_)  -> saveAttributes (Key key) (UUID uuid) online True
+    (_:key:uuid:"ping":_)       -> saveAttributes (Key key) (UUID uuid) online True
     _ -> pure ()
 
   where online = "{\"state\": \"online\"}"
 
 
-mkSubscribe :: (Text -> Maybe Filter) -> Text -> Maybe (Filter, SubOptions)
+mkSubscribe :: (Key -> Maybe Filter) -> Key -> Maybe (Filter, SubOptions)
 mkSubscribe f k = case f k of
                     Nothing -> Nothing
                     Just t  -> Just (t, subOptions)
 
 
-startMQTT :: [Text] -> URI -> (Text -> Text -> ByteString -> Bool -> IO ())-> IO MqttEnv
+startMQTT :: [Key] -> URI -> (Key -> UUID -> ByteString -> Bool -> IO ())-> IO MqttEnv
 startMQTT keys mqttURI saveAttributes = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)

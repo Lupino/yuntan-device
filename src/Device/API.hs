@@ -80,9 +80,6 @@ updateDeviceMeta
   => DeviceID -> Meta -> GenHaxl u w Int64
 updateDeviceMeta devid = updateDevice devid "meta" . decodeUtf8 . LB.toStrict . encode
 
-updateDeviceToken :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> Token -> GenHaxl u w Int64
-updateDeviceToken devid = updateDevice devid "token"
-
 updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -> GenHaxl u w Int64
 updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
@@ -93,7 +90,7 @@ filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
 filterMeta _ nv _ = nv
 
-updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => Text -> LB.ByteString -> Bool -> GenHaxl u w ()
+updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => UUID -> LB.ByteString -> Bool -> GenHaxl u w ()
 updateDeviceMetaByUUID uuid meta0 force = do
   devid <- getDevIdByUuid uuid
   case devid of
@@ -118,7 +115,7 @@ updateDeviceMetaByUUID uuid meta0 force = do
   where online = object [ "state" .= ("online" :: String) ]
         meta = replaceLB meta0
 
-getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
+getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w CreatedAt
 getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
 
 
@@ -127,7 +124,7 @@ isUUID = isJust . fromText
 
 getDevId :: HasPSQL u => Text -> GenHaxl u w (Maybe DeviceID)
 getDevId ident
-  | T.take 3 ident == "id_" = pure $ readMaybe $ T.unpack $ T.drop 3 ident
-  | T.take 5 ident == "addr_" = getDevIdByAddr $ T.drop 5 ident
-  | isUUID ident = getDevIdByUuid ident
-  | otherwise = getDevIdByToken ident
+  | T.take 3 ident == "id_" = pure $ fmap DeviceID $ readMaybe $ T.unpack $ T.drop 3 ident
+  | T.take 5 ident == "addr_" = getDevIdByAddr $ Addr $ T.drop 5 ident
+  | T.take 6 ident == "token_" = getDevIdByToken $ Token $ T.drop 6 ident
+  | otherwise = getDevIdByUuid $ UUID ident

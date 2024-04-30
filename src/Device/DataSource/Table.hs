@@ -15,7 +15,7 @@ createDeviceTable =
     , "key_id INT NOT NULL"
     , "token VARCHAR(128) NOT NULL"
     , "uuid VARCHAR(128) NOT NULL"
-    , "addr VARCHAR(10) NOT NULL"
+    , "addr VARCHAR(20) NOT NULL"
     , "gw_id INT NOT NULL"
     , "meta JSON NOT NULL"
     , "created_at INT NOT NULL"

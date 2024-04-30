@@ -8,7 +8,6 @@ module Main
 import           Control.Monad                        (void, when)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
-import           Data.Text                            (pack)
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
 import           System.Exit                          (exitSuccess)
@@ -114,7 +113,7 @@ program Options
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (pack prefix:allowKeys) mqttConfig $ \_ uuid bs force ->
+  mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \_ uuid bs force ->
     runIO0 $ updateDeviceMetaByUUID uuid bs force
 
   scottyOptsT opts runIO0 (application mqtt)
