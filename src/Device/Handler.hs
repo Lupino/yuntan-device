@@ -4,6 +4,7 @@ module Device.Handler
   ( requireDevice
   , createDeviceHandler
   , updateDeviceMetaHandler
+  , updateDevicePingAtHandler
   , updateDeviceHandler
   , getDeviceListHandler
   , removeDeviceHandler
@@ -97,6 +98,13 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   case decode meta of
     Just ev -> void (lift $ updateDeviceMeta did $ union ev ometa) >> resultOK
     Nothing -> errBadRequest "meta filed is required."
+
+-- POST /api/devices/:ident/ping_at/
+updateDevicePingAtHandler :: HasOtherEnv Cache u => Device -> ActionH u w ()
+updateDevicePingAtHandler Device{devID = did} = do
+  pingAt <- CreatedAt <$> formParam "ping_at"
+  lift $ setPingAt did pingAt
+  resultOK
 
 -- GET /api/devices/
 getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()

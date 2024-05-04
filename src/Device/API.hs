@@ -11,6 +11,8 @@ module Device.API
 
   , getDevId
   , randomAddr
+
+  , setPingAt
   , module X
   ) where
 
@@ -43,6 +45,7 @@ import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               getDevKeyId)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
+import           Foreign.C.Types        (CTime (..))
 import           Haxl.Core              (GenHaxl)
 import           Haxl.RedisCache        (cached, get, remove, set)
 import           System.Entropy         (getEntropy)
@@ -111,15 +114,22 @@ updateDeviceMetaByUUID uuid meta0 force = do
                                                 else online `union` ometa
                 unless (nv == ometa) $ void $ updateDeviceMeta did nv
                 unless (KeyMap.member "addr" ev) $ do
-                  t <- liftIO $ read . show . toEpochTime <$> getUnixTime
-                  void $ set redisEnv (genPingAtKey did) (t :: Int64)
+                  t <- liftIO $ CreatedAt . un . toEpochTime <$> getUnixTime
+                  setPingAt did t
             _ -> pure ()
 
   where online = object [ "state" .= ("online" :: String) ]
         meta = replaceLB meta0
 
+        un :: CTime -> Int64
+        un (CTime t) = t
+
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w CreatedAt
 getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
+
+
+setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
+setPingAt did pingAt = set redisEnv (genPingAtKey did) pingAt
 
 
 isUUID :: Text -> Bool
