@@ -274,6 +274,7 @@ instance FromRow Device where
 instance ToJSON Device where
   toJSON Device {..} = object
     [ "id"         .= devID
+    , "key_id"     .= devKeyId
     , "key"        .= devKey
     , "token"      .= devToken
     , "uuid"       .= devUUID
@@ -287,6 +288,7 @@ instance ToJSON Device where
 instance FromJSON Device where
   parseJSON = withObject "Device" $ \o -> do
     devID        <- o .: "id"
+    devKeyId     <- o .: "key_id"
     devKey       <- o .: "key"
     devToken     <- o .: "token"
     devUUID      <- o .: "uuid"
@@ -295,4 +297,4 @@ instance FromJSON Device where
     devMeta      <- o .: "meta"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
-    return Device{devKeyId = 0, ..}
+    return Device{..}
