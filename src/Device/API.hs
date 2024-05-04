@@ -74,7 +74,7 @@ getDevice devid = do
   case mdev of
     Nothing -> pure Nothing
     Just dev -> do
-      pingAt <- getPingAt devid
+      pingAt <- getPingAt devid (devCreatedAt dev)
       key <- getDevKeyById (devKeyId dev)
       pure $ Just dev { devPingAt = pingAt, devKey = key }
 
@@ -118,8 +118,8 @@ updateDeviceMetaByUUID uuid meta0 force = do
   where online = object [ "state" .= ("online" :: String) ]
         meta = replaceLB meta0
 
-getPingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w CreatedAt
-getPingAt did = fromMaybe 0 <$> get redisEnv (genPingAtKey did)
+getPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w CreatedAt
+getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 
 
 isUUID :: Text -> Bool
