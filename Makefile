@@ -1,7 +1,7 @@
 PLATFORM ?= musl64
 STRIP = strip
 PKG ?= yuntan-device
-COMPILER = ghc927
+COMPILER ?= ghc964
 
 ifeq ($(PLATFORM),aarch64-multiplatform-musl)
 STRIP = aarch64-linux-gnu-strip
@@ -32,13 +32,9 @@ yuntan-device: dist/$(PLATFORM)/yuntan-device
 package: yuntan-device
 	cd dist/$(PLATFORM) && tar cjvf ../yuntan-device-linux-$(PLATFORM).tar.bz2 *
 
+update-sha256:
+	gawk -f nix/update-sha256.awk cabal.project > nix/sha256map.nix
 
-plan-sha256:
-	nix-build -A plan-nix.passthru.calculateMaterializedSha | bash
-
-materialized:
-	rm -r nix/materialized
-	nix-build 2>&1 | grep -om1 '/nix/store/.*-updateMaterialized' | bash
 
 clean:
 	rm -rf dist
@@ -48,5 +44,4 @@ help:
 	@echo make PLATFORM=musl64
 	@echo make PLATFORM=aarch64-multiplatform-musl
 	@echo make clean
-	@echo make plan-sha256
-	@echo make materialized
+	@echo make update-sha256

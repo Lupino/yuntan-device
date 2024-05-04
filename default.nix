@@ -1,4 +1,4 @@
-{ compiler-nix-name ? "ghc927" }:
+{ compiler-nix-name ? "ghc964" }:
 let
   # Read in the Niv sources
   sources = import ./nix/sources.nix {};
@@ -32,10 +32,9 @@ in pkgs.haskell-nix.cabalProject {
       src = ./.;
       name = "yuntan-device";
     };
-    index-state = "2023-04-05T00:00:00Z";
-    index-sha256 = "2e74554cde421629a0d374ad0971e73b670ce753031e00a6e0a620e564fd2d5c";
-    plan-sha256 = if compiler-nix-name == "ghc927" then "0phbqb24x54lf8vrz3yyvcn0m08p75h5nvhsrs56s9bjx00wmv98" else null;
-    materialized = if compiler-nix-name == "ghc927" then ./nix/materialized else null;
+    index-state = "2024-04-29T00:00:00Z";
+    index-sha256 = "007c381aaea4b7e58728eb0a58a84d61f200063a68f54297e2433fd09590c99f";
+    sha256map = import ./nix/sha256map.nix;
     # Specify the GHC version to use.
     compiler-nix-name = compiler-nix-name;
     modules = [(
