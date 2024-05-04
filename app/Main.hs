@@ -131,6 +131,7 @@ application mqtt = do
   post "/api/devices/:ident/uuid/" $ requireDevice $ updateDeviceHandler "uuid"
   post "/api/devices/:ident/addr/" $ requireDevice $ updateDeviceHandler "addr"
   post "/api/devices/:ident/gw_id/" $ requireDevice $ updateDeviceHandler "gw_id"
+  post "/api/devices/:ident/created_at/" $ requireDevice $ updateDeviceHandler "created_at"
   post "/api/devices/:ident/meta/" $ requireDevice updateDeviceMetaHandler
   get "/api/devices/" $ getDeviceListHandler allowKeys
   delete "/api/devices/:ident/" $ requireDevice (removeDeviceHandler mqtt)
