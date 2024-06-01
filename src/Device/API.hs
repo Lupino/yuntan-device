@@ -129,7 +129,7 @@ getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
-setPingAt did pingAt = set redisEnv (genPingAtKey did) pingAt
+setPingAt did = set redisEnv (genPingAtKey did)
 
 
 isUUID :: Text -> Bool

@@ -26,7 +26,7 @@ import           Database.PSQL.Types (FromField (..), FromRow (..),
                                       ToField (..), field)
 
 
-data Key = Key {unKey :: Text}
+newtype Key = Key {unKey :: Text}
   deriving (Show, Eq, Ord)
 
 instance Hashable Key where
@@ -49,7 +49,7 @@ instance ToJSON Key where
   toJSON (Key k) = toJSON k
 
 
-data Addr = Addr {unAddr :: Text}
+newtype Addr = Addr {unAddr :: Text}
   deriving (Show, Eq, Ord)
 
 instance Hashable Addr where
@@ -71,7 +71,7 @@ instance FromJSON Addr where
 instance ToJSON Addr where
   toJSON (Addr k) = toJSON k
 
-data Token = Token {unToken :: Text}
+newtype Token = Token {unToken :: Text}
   deriving (Show, Eq, Ord)
 
 instance Hashable Token where
@@ -93,7 +93,7 @@ instance FromJSON Token where
 instance ToJSON Token where
   toJSON (Token k) = toJSON k
 
-data UUID = UUID {unUUID :: Text}
+newtype UUID = UUID {unUUID :: Text}
   deriving (Show, Eq, Ord)
 
 instance Hashable UUID where
@@ -115,7 +115,7 @@ instance ToJSON UUID where
   toJSON (UUID k) = toJSON k
 
 
-data CreatedAt = CreatedAt {unCreatedAt :: Int64}
+newtype CreatedAt = CreatedAt {unCreatedAt :: Int64}
   deriving (Show, Eq, Ord)
 
 instance Hashable CreatedAt where
@@ -157,7 +157,7 @@ instance ToJSON CreatedAt where
   toJSON (CreatedAt k) = toJSON k
 
 
-data KeyID = KeyID {unKeyID :: Int64}
+newtype KeyID = KeyID {unKeyID :: Int64}
   deriving (Show, Eq, Ord)
 
 instance Hashable KeyID where
@@ -198,7 +198,7 @@ instance FromJSON KeyID where
 instance ToJSON KeyID where
   toJSON (KeyID k) = toJSON k
 
-data DeviceID = DeviceID {unDeviceID :: Int64}
+newtype DeviceID = DeviceID {unDeviceID :: Int64}
   deriving (Show, Eq, Ord)
 
 instance Hashable DeviceID where
