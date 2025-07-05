@@ -63,10 +63,10 @@ io $> a = do
   return r
 
 genPingAtKey :: DeviceID -> ByteString
-genPingAtKey devid = fromString $ "ping_at:" ++ show devid
+genPingAtKey (DeviceID devid) = fromString $ "ping_at:" ++ show devid
 
 genDeviceKey :: DeviceID -> ByteString
-genDeviceKey devid = fromString $ "device:" ++ show devid
+genDeviceKey (DeviceID devid) = fromString $ "device:" ++ show devid
 
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
