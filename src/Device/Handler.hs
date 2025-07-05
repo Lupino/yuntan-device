@@ -20,8 +20,7 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
-import qualified Data.Text              as T (null)
-import qualified Data.Text.Lazy         as LT (pack)
+import qualified Data.Text              as T (null, pack)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
 import           Device
@@ -67,7 +66,7 @@ checkUsed doCheck errMsg next = do
 
 -- POST /api/devices/
 createDeviceHandler
-  :: (HasPSQL u, HasOtherEnv Cache u)
+  :: (Monoid w, HasPSQL u, HasOtherEnv Cache u)
   => [Key] -> ActionH u w ()
 createDeviceHandler allowKeys = do
   key <- Key <$> formParam "key"
@@ -85,14 +84,14 @@ createDeviceHandler allowKeys = do
 -- POST /api/devices/:ident/uuid/
 -- POST /api/devices/:ident/addr/
 -- POST /api/devices/:ident/gw_id/
-updateDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => String -> Device -> ActionH u w ()
+updateDeviceHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => String -> Device -> ActionH u w ()
 updateDeviceHandler field Device{devID = did} = do
-  value <- formParam $ LT.pack field
+  value <- formParam $ T.pack field
   ret <- lift $ updateDevice did field value
   resultOKOrErr ret $ "update device " ++ field ++ " failed"
 
 -- POST /api/devices/:ident/meta/
-updateDeviceMetaHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+updateDeviceMetaHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- formParam "meta"
   case decode meta of
@@ -100,7 +99,7 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
     Nothing -> errBadRequest "meta filed is required."
 
 -- POST /api/devices/:ident/ping_at/
-updateDevicePingAtHandler :: HasOtherEnv Cache u => Device -> ActionH u w ()
+updateDevicePingAtHandler :: (Monoid w, HasOtherEnv Cache u) => Device -> ActionH u w ()
 updateDevicePingAtHandler Device{devID = did} = do
   pingAt <- CreatedAt <$> formParam "ping_at"
   lift $ setPingAt did pingAt

@@ -22,7 +22,7 @@ import           Data.Cache             (Cache (..), newCache)
 import qualified Data.Cache             as Cache (deleteSTM, insert', insertSTM,
                                                   lookupSTM, purgeExpired)
 import           Data.Int               (Int64)
-import           Data.Maybe             (catMaybes)
+import           Data.Maybe             (catMaybes, fromMaybe, listToMaybe)
 import           Data.Text              (Text, append, pack, splitOn)
 import           Device.Types           (Key (..), UUID (..))
 import           Network.MQTT.Client
@@ -190,7 +190,7 @@ startMQTT keys mqttURI saveAttributes = do
     r <- try $ do
       client <- connectURI conf mqttURI { uriFragment = '#':clientId }
       atomically $ writeTVar mc $ Just client
-      subscribed <- subscribe client (catMaybes $ concat
+      subscribed <- subscribe client (concatMap catMaybes
         [ map (mkSubscribe responseFilter) keys
         , map (mkSubscribe attrFilter) keys
         , map (mkSubscribe telemetryFilter) keys
@@ -213,7 +213,7 @@ startMQTT keys mqttURI saveAttributes = do
     threadDelay 1000000
 
   pure MqttEnv
-    { mKey = head keys
+    { mKey = fromMaybe "" $ listToMaybe keys
     , mClient = mc
     , mResCache = resCache
     , mReqCache = reqCache

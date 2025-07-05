@@ -14,20 +14,19 @@ module Device.DataSource
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
-import qualified Control.Exception          (SomeException, bracket_, try)
-import           Data.Hashable              (Hashable (..))
-import           Data.Int                   (Int64)
-import           Data.Pool                  (withResource)
-import           Data.Text                  (Text)
-import           Data.Typeable              (Typeable)
-import           Database.PostgreSQL.Simple (Connection)
-import           Database.PSQL.Types        (From, HasPSQL, OrderBy, PSQL,
-                                             PSQLPool, Size, TablePrefix,
-                                             psqlPool, runPSQL)
+import qualified Control.Exception        as CE (SomeException, bracket_, try)
+import           Data.Hashable            (Hashable (..))
+import           Data.Int                 (Int64)
+import           Data.List                (groupBy)
+import           Data.Text                (Text)
+import           Data.Typeable            (Typeable)
+import           Database.PSQL.Types      (From, HasPSQL, OrderBy, PSQL,
+                                           PSQLPool, Size, TablePrefix,
+                                           psqlPool, runPSQLPool)
 import           Device.DataSource.Device
 import           Device.DataSource.Table
 import           Device.Types
-import           Haxl.Core                  hiding (env, fetchReq)
+import           Haxl.Core                hiding (env, fetchReq)
 
 -- Data source implementation.
 
@@ -82,6 +81,11 @@ instance DataSourceName DeviceReq where
 instance HasPSQL u => DataSource u DeviceReq where
   fetch = doFetch
 
+isSameType :: BlockedFetch DeviceReq -> BlockedFetch DeviceReq -> Bool
+isSameType (BlockedFetch (GetDevice _) _) (BlockedFetch (GetDevice _) _) = True
+isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
+isSameType _ _ = False
+
 doFetch
   :: HasPSQL u
   => State DeviceReq
@@ -91,20 +95,58 @@ doFetch
 
 doFetch _state _flags _user = AsyncFetch $ \reqs inner -> do
   sem <- newQSem $ numThreads _state
-  asyncs <- mapM (fetchAsync sem (psqlPool _user) (statePrefix _state)) reqs
+  asyncs <- mapM (fetchAsync sem (psqlPool _user) (statePrefix _state)) (groupBy isSameType reqs)
   inner
   mapM_ wait asyncs
 
-fetchAsync :: QSem -> PSQLPool -> TablePrefix -> BlockedFetch DeviceReq -> IO (Async ())
+fetchAsync :: QSem -> PSQLPool -> TablePrefix -> [BlockedFetch DeviceReq] -> IO (Async ())
 fetchAsync sem pool prefix req = async $
-  Control.Exception.bracket_ (waitQSem sem) (signalQSem sem) $ withResource pool $ fetchSync req prefix
+  CE.bracket_ (waitQSem sem) (signalQSem sem) $ fetchSync req prefix pool
 
-fetchSync :: BlockedFetch DeviceReq -> TablePrefix -> Connection -> IO ()
-fetchSync (BlockedFetch req rvar) prefix conn = do
-  e <- Control.Exception.try $ runPSQL prefix conn (fetchReq req)
+
+putFail :: CE.SomeException -> BlockedFetch DeviceReq -> IO ()
+putFail ex (BlockedFetch _ rvar) = putFailure rvar ex
+
+
+fetchSync :: [BlockedFetch DeviceReq] -> TablePrefix -> PSQLPool -> IO ()
+fetchSync [] _ _ = return ()
+fetchSync [BlockedFetch req rvar] prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (fetchReq req)
   case e of
-    Left ex -> putFailure rvar (ex :: Control.Exception.SomeException)
+    Left ex -> putFailure rvar (ex :: CE.SomeException)
     Right a -> putSuccess rvar a
+
+fetchSync reqs@((BlockedFetch (GetDevice _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getDeviceList ids)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where ids = [i | BlockedFetch (GetDevice i) _ <- reqs]
+        putReq :: [Device] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetDevice _) rvar) = putSuccess rvar Nothing
+        putReq (x:xs) req@(BlockedFetch (GetDevice i) rvar)
+          | i == devID x = putSuccess rvar (Just x)
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
+fetchSync reqs@((BlockedFetch (GetDevKeyByID _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getDevKeyList ids)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where ids = [i | BlockedFetch (GetDevKeyByID i) _ <- reqs]
+        putReq :: [(KeyID, Key)] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetDevKeyByID _) rvar) = putSuccess rvar ""
+        putReq (x:xs) req@(BlockedFetch (GetDevKeyByID i) rvar)
+          | i == fst x = putSuccess rvar (snd x)
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
+fetchSync reqs prefix pool = mapM_ (\x -> fetchSync [x] prefix pool) reqs
 
 fetchReq :: DeviceReq a -> PSQL a
 fetchReq CreateTable                  = createTable

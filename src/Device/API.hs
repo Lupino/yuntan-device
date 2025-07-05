@@ -27,13 +27,12 @@ import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Int               (Int64)
-import           Data.Maybe             (fromMaybe, isJust)
+import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Data.UnixTime
-import           Data.UUID              (fromText)
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
@@ -130,10 +129,6 @@ getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
 setPingAt did = set redisEnv (genPingAtKey did)
-
-
-isUUID :: Text -> Bool
-isUUID = isJust . fromText
 
 getDevId :: HasPSQL u => Text -> GenHaxl u w (Maybe DeviceID)
 getDevId ident

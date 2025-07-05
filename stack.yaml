@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-22.18
+resolver: lts-23.26
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -41,11 +41,11 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/dustin/mqtt-hs.git
-  commit: 6b7c0ef075159fbd836a04ebcc8565419aa4638c
+  commit: 8ad43a46ed5f208c240a69850c49e55bb6a74de9
 - git: https://github.com/facebook/Haxl.git
-  commit: 6cd30c084debcde9bb83e0f517bbe98cdd80e945
+  commit: 037506e2f082c9b9bab3a473ef117fe0fdc1e35f
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: 3a514f5db469433e0f2eedbab5775d8138951baf
+  commit: ae70abeeef2027e032cdc7829e50e869b2bf2279
   subdirs:
   - psql-utils
   - aeson-result
@@ -77,5 +77,10 @@ extra-package-dbs: []
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+nix:
+  packages:
+  - zlib
+  - postgresql
+  - pkg-config
 
 allow-newer: true

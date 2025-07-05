@@ -3,6 +3,7 @@
 module Device.DataSource.Device
   ( createDevice
   , getDevice
+  , getDeviceList
   , getDevIdByToken
   , getDevIdByUuid
   , getDevIdList
@@ -14,6 +15,7 @@ module Device.DataSource.Device
 
   , getDevKeyId
   , getDevKeyById
+  , getDevKeyList
 
   , getDevIdByAddr
   , getDevIdListByGw
@@ -28,10 +30,11 @@ import           Data.Text              (Text)
 import           Data.UnixTime
 import           Data.UUID              (toText)
 import           Data.UUID.V4           (nextRandom)
-import           Database.PSQL.Types    (From, Only (..), OrderBy, PSQL, Size,
-                                         TableName, count, count_, delete,
-                                         insertRet, selectOne, selectOneOnly,
-                                         selectOnly, selectOnly_, update)
+import           Database.PSQL.Types    (From (..), Only (..), OrderBy, PSQL,
+                                         Size (..), TableName, count, count_,
+                                         delete, insertRet, selectIn, selectOne,
+                                         selectOneOnly, selectOnly, selectOnly_,
+                                         update)
 import           Device.Types
 
 devices :: TableName
@@ -59,6 +62,9 @@ getDevKeyId key = do
 getDevKeyById :: KeyID -> PSQL Key
 getDevKeyById kid = fromMaybe "" <$> selectOneOnly deviceKeys "devkey" "id = ?" (Only kid)
 
+getDevKeyList :: [KeyID] -> PSQL [(KeyID, Key)]
+getDevKeyList = selectIn deviceKeys ["id", "devkey"] "id"
+
 createDevice :: KeyID -> Token -> Addr -> PSQL DeviceID
 createDevice kid token addr = do
   t <- liftIO getUnixTime
@@ -75,6 +81,9 @@ createDevice kid token addr = do
 
 getDevice :: DeviceID -> PSQL (Maybe Device)
 getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
+
+getDeviceList :: [DeviceID] -> PSQL [Device]
+getDeviceList = selectIn devices ["*"] "id"
 
 getDevIdByToken :: Token -> PSQL (Maybe DeviceID)
 getDevIdByToken token = selectOneOnly devices "id" "token = ?" (Only token)
