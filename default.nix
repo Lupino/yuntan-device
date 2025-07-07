@@ -1,4 +1,4 @@
-{ compiler-nix-name ? "ghc964" }:
+{ compiler-nix-name ? "ghc984" }:
 let
   # Read in the Niv sources
   sources = import ./nix/sources.nix {};
@@ -22,7 +22,7 @@ let
     # haskell.nix provides access to the nixpkgs pins which are used by our CI,
     # hence you will be more likely to get cache hits when using these.
     # But you can also just use your own, e.g. '<nixpkgs>'.
-    sources.nixpkgs
+    haskellNix.sources.nixpkgs-unstable
     # These arguments passed to nixpkgs, include some patches and also
     # the haskell.nix functionality itself as an overlay.
     (haskellNix.nixpkgsArgs // { inherit overlays; });
@@ -32,8 +32,8 @@ in pkgs.haskell-nix.cabalProject {
       src = ./.;
       name = "yuntan-device";
     };
-    index-state = "2024-04-29T00:00:00Z";
-    index-sha256 = "007c381aaea4b7e58728eb0a58a84d61f200063a68f54297e2433fd09590c99f";
+    index-state = "2025-07-05T00:00:00Z";
+    index-sha256 = "99648971aa10993273b78022238e7fbe5756d8e68a5b7884f43c4fca202635f1";
     sha256map = import ./nix/sha256map.nix;
     # Specify the GHC version to use.
     compiler-nix-name = compiler-nix-name;
