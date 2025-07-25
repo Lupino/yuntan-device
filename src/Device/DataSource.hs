@@ -34,8 +34,7 @@ data DeviceReq a where
   CreateTable :: DeviceReq Int64
   CreateDevice :: KeyID -> Token -> Addr -> DeviceReq DeviceID
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
-  GetDevIdByToken :: Token -> DeviceReq (Maybe DeviceID)
-  GetDevIdByUuid :: UUID -> DeviceReq (Maybe DeviceID)
+  GetDevIdByCol :: String -> Text -> DeviceReq (Maybe DeviceID)
   GetDevIdList :: From -> Size -> OrderBy -> DeviceReq [DeviceID]
   CountDevice :: DeviceReq Int64
   GetDevIdListByKey :: KeyID -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
@@ -44,7 +43,6 @@ data DeviceReq a where
   RemoveDevice :: DeviceID -> DeviceReq Int64
   GetDevKeyID :: Key -> DeviceReq KeyID
   GetDevKeyByID :: KeyID -> DeviceReq Key
-  GetDevIdByAddr   :: Addr -> DeviceReq (Maybe DeviceID)
   GetDevIdListByGw :: DeviceID -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
   CountDevAddrByGw :: DeviceID -> DeviceReq Int64
 
@@ -55,8 +53,7 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s CreateTable                  = hashWithSalt s (1::Int)
   hashWithSalt s (CreateDevice k t a)         = hashWithSalt s (2::Int, k, t, a)
   hashWithSalt s (GetDevice i)                = hashWithSalt s (3::Int, i)
-  hashWithSalt s (GetDevIdByToken t)          = hashWithSalt s (4::Int, t)
-  hashWithSalt s (GetDevIdByUuid u)           = hashWithSalt s (5::Int, u)
+  hashWithSalt s (GetDevIdByCol c v)          = hashWithSalt s (4::Int, c, v)
   hashWithSalt s (GetDevIdList f si o)        = hashWithSalt s (6::Int, f, si, o)
   hashWithSalt s CountDevice                  = hashWithSalt s (7::Int)
   hashWithSalt s (GetDevIdListByKey k f si o) = hashWithSalt s (8::Int, k, f, si, o)
@@ -65,7 +62,6 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (RemoveDevice i)             = hashWithSalt s (11::Int, i)
   hashWithSalt s (GetDevKeyID k)              = hashWithSalt s (12::Int, k)
   hashWithSalt s (GetDevKeyByID k)            = hashWithSalt s (13::Int, k)
-  hashWithSalt s (GetDevIdByAddr a)           = hashWithSalt s (16 :: Int, a)
   hashWithSalt s (GetDevIdListByGw g f si o)  = hashWithSalt s (17 :: Int, g, f, si, o)
   hashWithSalt s (CountDevAddrByGw g)         = hashWithSalt s (18 :: Int, g)
 
@@ -84,6 +80,7 @@ instance HasPSQL u => DataSource u DeviceReq where
 isSameType :: BlockedFetch DeviceReq -> BlockedFetch DeviceReq -> Bool
 isSameType (BlockedFetch (GetDevice _) _) (BlockedFetch (GetDevice _) _) = True
 isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
+isSameType (BlockedFetch (GetDevIdByCol c0 _) _) (BlockedFetch (GetDevIdByCol c1 _) _) = c0 == c1
 isSameType _ _ = False
 
 doFetch
@@ -146,14 +143,28 @@ fetchSync reqs@((BlockedFetch (GetDevKeyByID _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
+fetchSync reqs@((BlockedFetch (GetDevIdByCol col _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getDevIdListByCol col vals)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where vals = [v | BlockedFetch (GetDevIdByCol _ v) _ <- reqs]
+        putReq :: [(Text, DeviceID)] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetDevIdByCol _ _) rvar) = putSuccess rvar Nothing
+        putReq (x:xs) req@(BlockedFetch (GetDevIdByCol _ c) rvar)
+          | c == fst x = putSuccess rvar (Just (snd x))
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
 fetchSync reqs prefix pool = mapM_ (\x -> fetchSync [x] prefix pool) reqs
 
 fetchReq :: DeviceReq a -> PSQL a
 fetchReq CreateTable                  = createTable
 fetchReq (CreateDevice k t a)         = createDevice k t a
 fetchReq (GetDevice i)                = getDevice i
-fetchReq (GetDevIdByToken t)          = getDevIdByToken t
-fetchReq (GetDevIdByUuid u)           = getDevIdByUuid u
+fetchReq (GetDevIdByCol c v)          = getDevIdByCol c v
 fetchReq (GetDevIdList f si o)        = getDevIdList f si o
 fetchReq CountDevice                  = countDevice
 fetchReq (GetDevIdListByKey k f si o) = getDevIdListByKey k f si o
@@ -162,7 +173,6 @@ fetchReq (UpdateDevice i f t)         = updateDevice i f t
 fetchReq (RemoveDevice i)             = removeDevice i
 fetchReq (GetDevKeyID k)              = getDevKeyId k
 fetchReq (GetDevKeyByID k)            = getDevKeyById k
-fetchReq (GetDevIdByAddr a)           = getDevIdByAddr a
 fetchReq (GetDevIdListByGw g f si o)  = getDevIdListByGw g f si o
 fetchReq (CountDevAddrByGw g)         = countDevAddrByGw g
 

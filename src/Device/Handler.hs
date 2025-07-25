@@ -20,7 +20,7 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
-import qualified Data.Text              as T (null, pack)
+import qualified Data.Text              as T (length, null, pack, splitOn)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), desc)
 import           Device
@@ -74,7 +74,7 @@ createDeviceHandler allowKeys = do
     kid <- lift $ getDevKeyId key
     token <- Token <$> formParam "token"
     addr <- lift randomAddr
-    checkUsed (getDevIdByToken token) "token is already used" $ do
+    checkUsed (getDevIdByCol "token" (unToken token)) "token is already used" $ do
       devid <- lift $ createDevice kid token addr
       json =<< lift (getDevice devid)
 
@@ -109,8 +109,21 @@ updateDevicePingAtHandler Device{devID = did} = do
 getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
 getDeviceListHandler allowKeys = do
   key <- Key <$> safeQueryParam "key" ""
+  idents <- safeQueryParam "idents" ""
   gwid <- DeviceID <$> safeQueryParam "gw_id" 0
-  if key `elem` allowKeys then do
+  if T.length idents > 0 then do
+    devices <- lift $ do
+      ids <- catMaybes <$> mapM getDevId (T.splitOn "," idents)
+      catMaybes <$> mapM getDevice ids
+
+    okListResult "devices" List
+      { getFrom   = 0
+      , getSize   = fromIntegral (length devices)
+      , getTotal  = fromIntegral (length devices)
+      , getResult = devices
+      }
+
+  else if key `elem` allowKeys then do
     kid <- lift $ getDevKeyId key
     resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
   else if gwid > 0 then resultDeviceList (getDevIdListByGw gwid) (countDevAddrByGw gwid)

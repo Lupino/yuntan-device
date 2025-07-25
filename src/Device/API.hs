@@ -37,8 +37,7 @@ import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               countDeviceByKey, createDevice,
-                                              createTable, getDevIdByAddr,
-                                              getDevIdByToken, getDevIdByUuid,
+                                              createTable, getDevIdByCol,
                                               getDevIdList, getDevIdListByGw,
                                               getDevIdListByKey, getDevKeyById,
                                               getDevKeyId)
@@ -96,8 +95,8 @@ filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -
 filterMeta _ nv _ = nv
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => UUID -> LB.ByteString -> Bool -> GenHaxl u w ()
-updateDeviceMetaByUUID uuid meta0 force = do
-  devid <- getDevIdByUuid uuid
+updateDeviceMetaByUUID (UUID uuid) meta0 force = do
+  devid <- getDevIdByCol "uuid" uuid
   case devid of
     Nothing -> pure ()
     Just did -> do
@@ -133,9 +132,9 @@ setPingAt did = set redisEnv (genPingAtKey did)
 getDevId :: HasPSQL u => Text -> GenHaxl u w (Maybe DeviceID)
 getDevId ident
   | T.take 3 ident == "id_" = pure $ fmap DeviceID $ readMaybe $ T.unpack $ T.drop 3 ident
-  | T.take 5 ident == "addr_" = getDevIdByAddr $ Addr $ T.drop 5 ident
-  | T.take 6 ident == "token_" = getDevIdByToken $ Token $ T.drop 6 ident
-  | otherwise = getDevIdByUuid $ UUID ident
+  | T.take 5 ident == "addr_" = getDevIdByCol "addr" $ T.drop 5 ident
+  | T.take 6 ident == "token_" = getDevIdByCol "token" $ T.drop 6 ident
+  | otherwise = getDevIdByCol "uuid" ident
 
 
 toHex :: ByteString -> Text
@@ -153,7 +152,7 @@ getNonZeroAddr = do
 randomAddr :: HasPSQL u => GenHaxl u w Addr
 randomAddr = do
   addr <- liftIO getNonZeroAddr
-  mdevid <- getDevIdByAddr addr
+  mdevid <- getDevIdByCol "addr" $ unAddr addr
   case mdevid of
     Nothing -> pure addr
     Just _  -> randomAddr

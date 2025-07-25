@@ -4,8 +4,6 @@ module Device.DataSource.Device
   ( createDevice
   , getDevice
   , getDeviceList
-  , getDevIdByToken
-  , getDevIdByUuid
   , getDevIdList
   , getDevIdListByKey
   , countDevice
@@ -17,7 +15,9 @@ module Device.DataSource.Device
   , getDevKeyById
   , getDevKeyList
 
-  , getDevIdByAddr
+  , getDevIdByCol
+  , getDevIdListByCol
+
   , getDevIdListByGw
   , countDevAddrByGw
   ) where
@@ -85,12 +85,6 @@ getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
 getDeviceList :: [DeviceID] -> PSQL [Device]
 getDeviceList = selectIn devices ["*"] "id"
 
-getDevIdByToken :: Token -> PSQL (Maybe DeviceID)
-getDevIdByToken token = selectOneOnly devices "id" "token = ?" (Only token)
-
-getDevIdByUuid :: UUID -> PSQL (Maybe DeviceID)
-getDevIdByUuid uuid = selectOneOnly devices "id" "uuid = ?" (Only uuid)
-
 getDevIdList :: From -> Size -> OrderBy -> PSQL [DeviceID]
 getDevIdList = selectOnly_ devices "id"
 
@@ -111,8 +105,12 @@ updateDevice devid field value =
 removeDevice :: DeviceID -> PSQL Int64
 removeDevice devid = delete devices "id = ?" (Only devid)
 
-getDevIdByAddr :: Addr -> PSQL (Maybe DeviceID)
-getDevIdByAddr addr = selectOneOnly devices "id" "addr = ?" (Only addr)
+getDevIdByCol :: String -> Text -> PSQL (Maybe DeviceID)
+getDevIdByCol field value = selectOneOnly devices "id"  (field ++ " = ?") (Only value)
+
+getDevIdListByCol :: String -> [Text] -> PSQL [(Text, DeviceID)]
+getDevIdListByCol col' = selectIn devices [col, "id"] col
+  where col = fromString col'
 
 getDevIdListByGw :: DeviceID -> From -> Size -> OrderBy -> PSQL [DeviceID]
 getDevIdListByGw gwid =
