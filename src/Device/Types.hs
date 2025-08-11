@@ -11,11 +11,14 @@ module Device.Types
   , Meta
   , CreatedAt (..)
   , Addr (..)
+
+  , MetricID (..)
+  , Metric (..)
   ) where
 
 import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
                                       object, withObject, withScientific,
-                                      withText, (.:), (.=))
+                                      withText, (.:), (.:?), (.=))
 import           Data.Hashable       (Hashable (..))
 import           Data.Int            (Int64)
 import           Data.Maybe          (fromMaybe)
@@ -24,6 +27,7 @@ import           Data.String         (IsString (..))
 import           Data.Text           (Text)
 import           Database.PSQL.Types (FromField (..), FromRow (..),
                                       ToField (..), field)
+import           Text.Read           (readMaybe)
 
 
 newtype Key = Key {unKey :: Text}
@@ -239,6 +243,47 @@ instance FromJSON DeviceID where
 instance ToJSON DeviceID where
   toJSON (DeviceID k) = toJSON k
 
+newtype MetricID = MetricID {unMetricID :: Int64}
+  deriving (Show, Eq, Ord)
+
+instance Hashable MetricID where
+  hashWithSalt s (MetricID v) = hashWithSalt s v
+
+instance ToField MetricID where
+  toField (MetricID k) = toField k
+
+instance FromField MetricID where
+  fromField f mv = MetricID <$> fromField f mv
+
+instance Num MetricID where
+  MetricID c1 + MetricID c2 = MetricID (c1 + c2)
+  {-# INLINABLE (+) #-}
+
+  MetricID c1 - MetricID c2 = MetricID (c1 - c2)
+  {-# INLINABLE (-) #-}
+
+  MetricID c1 * MetricID c2 = MetricID (c1 * c2)
+  {-# INLINABLE (*) #-}
+
+  abs (MetricID c) = MetricID (abs c)
+  {-# INLINABLE abs #-}
+
+  negate (MetricID c) = MetricID (negate c)
+  {-# INLINABLE negate #-}
+
+  signum (MetricID c) = MetricID (signum c)
+  {-# INLINABLE signum #-}
+
+  fromInteger = MetricID . fromInteger
+  {-# INLINABLE fromInteger #-}
+
+instance FromJSON MetricID where
+  parseJSON = withScientific "MetricID" $ \t ->
+    pure $ MetricID $ fromMaybe 0 $ toBoundedInteger t
+
+instance ToJSON MetricID where
+  toJSON (MetricID k) = toJSON k
+
 type Meta      = Value
 
 data Device = Device
@@ -249,6 +294,7 @@ data Device = Device
   , devAddr      :: Addr
   , devGwId      :: DeviceID
   , devMeta      :: Value
+  , devMetric    :: Value
   , devPingAt    :: CreatedAt
   , devKey       :: Key
   , devCreatedAt :: CreatedAt
@@ -268,6 +314,7 @@ instance FromRow Device where
     return Device
       { devPingAt = 0
       , devKey = ""
+      , devMetric = Null
       , ..
       }
 
@@ -279,6 +326,7 @@ instance ToJSON Device where
     , "token"      .= devToken
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
+    , "metric"     .= devMetric
     , "addr"       .= devAddr
     , "gw_id"      .= devGwId
     , "ping_at"    .= devPingAt
@@ -295,6 +343,58 @@ instance FromJSON Device where
     devAddr      <- o .: "addr"
     devGwId      <- o .: "gw_id"
     devMeta      <- o .: "meta"
+    devMetric    <- o .: "metric"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
     return Device{..}
+
+
+data Metric = Metric
+  { metricId        :: MetricID
+  , metricDevId     :: DeviceID
+  , metricField     :: String
+  , metricRawValue  :: String
+  , metricValue     :: Float
+  , metricCreatedAt :: CreatedAt
+  }
+  deriving (Show)
+
+instance FromRow Metric where
+  fromRow = do
+    metricId <- field
+    metricDevId <- field
+    metricField <- field
+    metricRawValue <- field
+    metricValue <- field
+    metricCreatedAt <- field
+    return Metric { .. }
+
+instance ToJSON Metric where
+  toJSON Metric {..} = object
+    [ "id"         .= metricId
+    , "dev_id"     .= metricDevId
+    , "field"      .= metricField
+    , "raw_value"  .= metricRawValue
+    , "value"      .= metricValue
+    , "created_at" .= metricCreatedAt
+    ]
+
+
+parseValue :: Maybe String -> Maybe Float -> (String, Float)
+parseValue Nothing Nothing     = ("", 0)
+parseValue (Just v0) Nothing   = (v0, fromMaybe 0 $ readMaybe v0)
+parseValue Nothing (Just v1)   = (show v1, v1)
+parseValue (Just v0) (Just v1) = (v0, v1)
+
+
+instance FromJSON Metric where
+  parseJSON = withObject "Metric" $ \o -> do
+    metricId        <- o .: "id"
+    metricDevId     <- o .: "dev_id"
+    metricField     <- o .: "field"
+    rv              <- o .:? "raw_value"
+    v               <- o .:? "value"
+    metricCreatedAt <- o .: "created_at"
+
+    let (metricRawValue, metricValue) = parseValue rv v
+    return Metric{..}

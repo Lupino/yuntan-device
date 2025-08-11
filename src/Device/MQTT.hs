@@ -36,6 +36,8 @@ import           System.Log.Logger      (errorM)
 type ResponseCache = Cache Text (Maybe ByteString)
 type RequestCache  = Cache Text (Maybe ByteString)
 
+type SaveMetric = String -> UUID -> ByteString -> IO ()
+
 data MqttEnv = MqttEnv
   { mKey       :: Key -- the service key
   , mClient    :: TVar (Maybe MQTTClient)
@@ -142,9 +144,9 @@ cacheAble MqttEnv {..} h t io = do
           return $ Just vo
 
 messageCallback
-  :: (Key -> UUID -> ByteString -> Bool -> IO ())
+  :: SaveMetric
   -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
-messageCallback saveAttributes resCache _ topic payload _ =
+messageCallback saveMetric resCache _ topic payload _ =
   case splitOn "/" (unTopic topic) of
     (_:key:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
@@ -152,15 +154,15 @@ messageCallback saveAttributes resCache _ topic payload _ =
       let t = case defaultExpiration resCache of
                 Nothing -> Nothing
                 Just t' -> Just $ now + t'
-      saveAttributes (Key key) (UUID uuid) payload False
+      saveMetric "response" (UUID uuid) payload
       atomically $ do
         r <- Cache.lookupSTM True k resCache now
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:key:uuid:"attributes":_) -> saveAttributes (Key key) (UUID uuid) payload True
-    (_:key:uuid:"telemetry":_)  -> saveAttributes (Key key) (UUID uuid) online True
-    (_:key:uuid:"ping":_)       -> saveAttributes (Key key) (UUID uuid) online True
+    (_:key:uuid:"attributes":_) -> saveMetric "attributes" (UUID uuid) payload
+    (_:key:uuid:"telemetry":_)  -> saveMetric "telemetry" (UUID uuid) payload
+    (_:key:uuid:"ping":_)       -> saveMetric "ping" (UUID uuid) online
     _ -> pure ()
 
   where online = "{\"state\": \"online\"}"
@@ -172,8 +174,8 @@ mkSubscribe f k = case f k of
                     Just t  -> Just (t, subOptions)
 
 
-startMQTT :: [Key] -> URI -> (Key -> UUID -> ByteString -> Bool -> IO ())-> IO MqttEnv
-startMQTT keys mqttURI saveAttributes = do
+startMQTT :: [Key] -> URI -> SaveMetric -> IO MqttEnv
+startMQTT keys mqttURI saveMetric = do
   resCache <- newCache (Just $ TimeSpec 300 0)
   reqCache <- newCache (Just $ TimeSpec 10 0)
 
@@ -182,7 +184,7 @@ startMQTT keys mqttURI saveAttributes = do
   clientId <- genHex 20
 
   let conf = mqttConfig
-        { _msgCB = SimpleCallback (messageCallback saveAttributes resCache)
+        { _msgCB = SimpleCallback (messageCallback saveMetric resCache)
         , _protocol = Protocol311
         }
 

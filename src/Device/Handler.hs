@@ -10,6 +10,9 @@ module Device.Handler
   , removeDeviceHandler
   , getDeviceHandler
   , rpcHandler
+
+  , saveMetricHandler
+  , getMetricListHandler
   ) where
 
 import           Control.Monad          (void, when)
@@ -22,7 +25,7 @@ import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
 import qualified Data.Text              as T (length, null, pack, splitOn)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
-                                         OrderBy, Size (..), desc)
+                                         OrderBy, Size (..), asc, desc)
 import           Device
 import           Device.Config          (Cache)
 import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
@@ -96,7 +99,7 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- formParam "meta"
   case decode meta of
     Just ev -> void (lift $ updateDeviceMeta did $ union ev ometa) >> resultOK
-    Nothing -> errBadRequest "meta filed is required."
+    Nothing -> errBadRequest "meta field is required."
 
 -- POST /api/devices/:ident/ping_at/
 updateDevicePingAtHandler :: (Monoid w, HasOtherEnv Cache u) => Device -> ActionH u w ()
@@ -184,3 +187,37 @@ rpcHandler mqtt_ Device{devUUID = uuid, devKey = key} = do
       raw v
 
   where mqtt = if key `elem` mAllowKeys mqtt_ then mqtt_ {mKey = key} else mqtt_
+
+
+-- POST /api/devices/:ident/metric/
+saveMetricHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+saveMetricHandler Device{devID = did} = do
+  metric <- formParam "metric"
+  ct <- lift getEpochTimeInt
+  createdAt <- CreatedAt <$> safeFormParam "created_at" ct
+  case decode metric of
+    Just ev -> void (lift $ saveMetric did createdAt ev) >> resultOK
+    Nothing -> errBadRequest "metric field is required."
+
+
+-- GET /api/devices/:ident/metric/:field/
+getMetricListHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+getMetricListHandler Device{devID = did} = do
+  from <- From <$> safeQueryParam "from" 0
+  size <- Size <$> safeQueryParam "size" 10
+  startedAt <- safeQueryParam "started_at" 0
+  endedAt <- safeQueryParam "ended_at" 0
+  field <- captureParam "field"
+  s <- safeQueryParam "sort" ("asc" :: String)
+
+  let sort = if s == "asc" then asc else desc
+
+  total <- lift $ countMetric did field startedAt endedAt
+  metrics <- lift $ mapM getMetric =<< getMetricIdList did field startedAt endedAt from size (sort "created_at")
+
+  okListResult "data" List
+    { getFrom   = unFrom from
+    , getSize   = unSize size
+    , getTotal  = total
+    , getResult = catMaybes metrics
+    }

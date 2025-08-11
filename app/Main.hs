@@ -113,8 +113,8 @@ program Options
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \_ uuid bs force ->
-    runIO0 $ updateDeviceMetaByUUID uuid bs force
+  mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \tp uuid bs ->
+    runIO0 $ updateDeviceMetaByUUID tp uuid bs
 
   scottyOptsT opts runIO0 (application mqtt)
   where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
@@ -138,5 +138,7 @@ application mqtt = do
   delete "/api/devices/:ident/" $ requireDevice (removeDeviceHandler mqtt)
   get "/api/devices/:ident/" $ requireDevice getDeviceHandler
   post "/api/devices/:ident/rpc/" $ requireDevice $ rpcHandler mqtt
+  post "/api/devices/:ident/metric/" $ requireDevice saveMetricHandler
+  get "/api/devices/:ident/metric/:field/" $ requireDevice getMetricListHandler
 
   where allowKeys = mAllowKeys mqtt

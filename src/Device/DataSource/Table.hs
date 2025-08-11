@@ -30,6 +30,18 @@ createDeviceKeyTable =
     ]
 
 
+createMetricTable :: PSQL Int64
+createMetricTable =
+  PSQL.createTable "metrics"
+    [ "id BIGSERIAL PRIMARY KEY"
+    , "dev_id INT NOT NULL"
+    , "field VARCHAR(128) NOT NULL"
+    , "raw_value VARCHAR(128) NOT NULL"
+    , "value real NOT NULL"
+    , "created_at INT NOT NULL"
+    ]
+
+
 createTable :: PSQL Int64
 createTable =
   sum <$> sequence
@@ -41,4 +53,6 @@ createTable =
     , createIndex False "devices" "device_gw_id" ["gw_id"]
     , createDeviceKeyTable
     , createIndex True "device_keys" "device_key_devkey" ["devkey"]
+    , createMetricTable
+    , createIndex True "metrics" "metric_uniq_key" ["dev_id", "field", "created_at"]
     ]

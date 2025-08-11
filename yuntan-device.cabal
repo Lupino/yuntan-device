@@ -21,6 +21,7 @@ library
                      , Device.Types
                      , Device.DataSource
                      , Device.DataSource.Device
+                     , Device.DataSource.Metric
                      , Device.DataSource.Table
 
                      , Device.MQTT
