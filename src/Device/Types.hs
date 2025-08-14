@@ -14,6 +14,9 @@ module Device.Types
 
   , MetricID (..)
   , Metric (..)
+
+  , EmqxUser (..)
+  , EmqxMountPoint (..)
   ) where
 
 import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
@@ -398,3 +401,18 @@ instance FromJSON Metric where
 
     let (metricRawValue, metricValue) = parseValue rv v
     return Metric{..}
+
+newtype EmqxMountPoint = EmqxMountPoint String deriving (Show)
+
+instance ToJSON EmqxMountPoint where
+  toJSON (EmqxMountPoint uuid) = object [ "mountpoint" .= uuid ]
+
+data EmqxUser = EmqxSuperAdmin
+    | EmqxAdmin EmqxMountPoint
+    | EmqxNormal EmqxMountPoint
+    deriving (Show)
+
+instance ToJSON EmqxUser where
+  toJSON EmqxSuperAdmin               = object ["type" .= ("superadmin" :: String)]
+  toJSON (EmqxAdmin (EmqxMountPoint mp))  = object ["type" .= ("admin" :: String), "mountpoint" .= mp]
+  toJSON (EmqxNormal (EmqxMountPoint mp)) = object ["type" .= ("normal" :: String), "mountpoint" .= mp]

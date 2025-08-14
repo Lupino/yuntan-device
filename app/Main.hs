@@ -91,6 +91,7 @@ program Options
       redisThreads = C.redisHaxlNumThreads redisConfig
 
       mqttConfig   = C.mqttConfig conf
+      emqxAuth     = C.emqxAuth conf
       allowKeys    = C.allowKeys conf
 
 
@@ -116,14 +117,16 @@ program Options
   mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \tp uuid bs ->
     runIO0 $ updateDeviceMetaByUUID tp uuid bs
 
-  scottyOptsT opts runIO0 (application mqtt)
+  scottyOptsT opts runIO0 (application mqtt emqxAuth)
   where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
           runHaxl env0 m
 
-application :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w) => MqttEnv -> ScottyH u w ()
-application mqtt = do
+application
+  :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w)
+  => MqttEnv -> Maybe C.EmqxAuthConfig -> ScottyH u w ()
+application mqtt mEmqxAuth = do
   middleware logStdout
 
   post "/api/devices/" $ createDeviceHandler allowKeys
@@ -142,5 +145,12 @@ application mqtt = do
   get "/api/devices/:ident/metric/:field/" $ requireDevice getMetricListHandler
   delete "/api/devices/:ident/metric/:field/" $ requireDevice dropMetricHandler
   delete "/api/devices/:ident/metric/:field/:mid/" $ requireDevice removeMetricHandler
+
+  case mEmqxAuth of
+    Nothing -> pure ()
+    Just emqxAuth -> do
+      post "/mqtt/acl" emqxAclReqHandler
+      post "/mqtt/superuser" emqxSuperReqHandler
+      post "/mqtt/auth" $ emqxAuthReqHandler emqxAuth
 
   where allowKeys = mAllowKeys mqtt

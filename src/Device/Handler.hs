@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+
 module Device.Handler
   ( requireDevice
   , createDeviceHandler
@@ -15,6 +17,10 @@ module Device.Handler
   , removeMetricHandler
   , dropMetricHandler
   , getMetricListHandler
+
+  , emqxAclReqHandler
+  , emqxSuperReqHandler
+  , emqxAuthReqHandler
   ) where
 
 import           Control.Monad          (void, when)
@@ -25,18 +31,20 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
-import qualified Data.Text              as T (length, null, pack, splitOn)
+import qualified Data.Text              as T (length, null, pack, splitOn,
+                                              unpack)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
                                          OrderBy, Size (..), asc, desc)
 import           Device
-import           Device.Config          (Cache)
+import           Device.Config          (Cache, EmqxAdminConfig (..),
+                                         EmqxAuthConfig (..))
 import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
                                          request, sendDrop)
 import           Haxl.Core              (GenHaxl)
-import           Network.HTTP.Types     (status500)
+import           Network.HTTP.Types     (status400, status500)
 import           Web.Scotty.Haxl        (ActionH)
 import           Web.Scotty.Trans       (addHeader, captureParam, formParam,
-                                         json, raw)
+                                         json, raw, text)
 import           Web.Scotty.Utils       (err, errBadRequest, errNotFound, ok,
                                          okListResult, safeFormParam,
                                          safeQueryParam)
@@ -250,3 +258,47 @@ getMetricListHandler Device{devID = did} = do
     , getTotal  = total
     , getResult = catMaybes metrics
     }
+
+
+emqxSuperReqHandler :: ActionH u w ()
+emqxSuperReqHandler = text "ok"
+
+emqxAclReqHandler :: ActionH u w ()
+emqxAclReqHandler = text "ok"
+
+
+lookupEmqxUser
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => EmqxAuthConfig -> String -> String -> ActionH u w (Maybe EmqxUser)
+lookupEmqxUser EmqxAuthConfig {..} key token
+  | emqxSuperAdmin == key = if emqxSuperPassword == token then pure $ Just EmqxSuperAdmin
+                                                          else pure Nothing
+  | otherwise =
+    case getEmqxAdmin emqxAdminList of
+      Just _ -> pure $ Just $ EmqxAdmin $ EmqxMountPoint $ "/" ++ key
+      Nothing -> lift $ do
+        mdid <- getDevIdByCol "token" $ T.pack token
+        case mdid of
+          Nothing -> pure Nothing
+          Just did -> do
+            mdev <- getDevice did
+            case mdev of
+              Nothing -> pure Nothing
+              Just dev -> pure $ Just $ EmqxNormal $ EmqxMountPoint $ "/" ++ key ++ "/" ++ T.unpack (unUUID $ devUUID dev)
+
+  where getEmqxAdmin :: [EmqxAdminConfig] -> Maybe EmqxAdminConfig
+        getEmqxAdmin [] = Nothing
+        getEmqxAdmin (x:xs)
+          | emqxAdminKey x == key && emqxAdminPassword x == token = Just x
+          | otherwise = getEmqxAdmin xs
+
+emqxAuthReqHandler
+  :: (Monoid w, HasPSQL u, HasOtherEnv Cache u)
+  => EmqxAuthConfig -> ActionH u w ()
+emqxAuthReqHandler config = do
+  key <- formParam "username"
+  token <- formParam "password"
+  r <- lookupEmqxUser config key token
+  case r of
+    Nothing -> err status400 "no auth"
+    Just u  -> json u

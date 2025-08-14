@@ -11,6 +11,8 @@ module Device.Config
   , Cache
   , mkCache
   , redisEnv
+  , EmqxAuthConfig (..)
+  , EmqxAdminConfig (..)
   ) where
 
 import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
@@ -23,13 +25,40 @@ import           Haxl.RedisConfig     (RedisConfig (..), defaultRedisConfig,
                                        genRedisConnection)
 import           Network.URI          (URI, parseURI)
 
+data EmqxAdminConfig = EmqxAdminConfig
+  { emqxAdminKey      :: String
+  , emqxAdminPassword :: String
+  }
+  deriving (Show)
+
+instance FromJSON EmqxAdminConfig where
+  parseJSON = withObject "EmqxAdminConfig" $ \o -> do
+    emqxAdminKey <- o .: "key"
+    emqxAdminPassword <- o .: "password"
+    return EmqxAdminConfig{ .. }
+
+data EmqxAuthConfig = EmqxAuthConfig
+  { emqxSuperAdmin    :: String
+  , emqxSuperPassword :: String
+  , emqxAdminList     :: [EmqxAdminConfig]
+  }
+  deriving (Show)
+
+instance FromJSON EmqxAuthConfig where
+  parseJSON = withObject "EmqxAuthConfig" $ \o -> do
+    emqxSuperAdmin <- o .: "superadmin"
+    emqxSuperPassword <- o .: "password"
+    emqxAdminList <- o .: "admin_list"
+    return EmqxAuthConfig{ .. }
+
 data Config = Config
-    { psqlConfig  :: PSQL
-    , mqttConfig  :: URI
-    , redisConfig :: RedisConfig
-    , allowKeys   :: [Key]
-    }
-    deriving (Show)
+  { psqlConfig  :: PSQL
+  , mqttConfig  :: URI
+  , redisConfig :: RedisConfig
+  , allowKeys   :: [Key]
+  , emqxAuth    :: Maybe EmqxAuthConfig
+  }
+  deriving (Show)
 
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \o -> do
@@ -37,6 +66,7 @@ instance FromJSON Config where
     mqtt <- o .: "mqtt"
     redisConfig  <- o .:? "redis" .!= defaultRedisConfig
     allowKeys  <- o .:? "allow_keys" .!= []
+    emqxAuth <- o .:? "emqx_auth"
     case parseURI mqtt of
       Nothing         -> fail "invalid mqtt uri"
       Just mqttConfig -> return Config{..}
