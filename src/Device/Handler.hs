@@ -31,6 +31,7 @@ import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
+import           Data.String            (fromString)
 import qualified Data.Text              as T (length, null, pack, splitOn,
                                               unpack)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
@@ -271,8 +272,10 @@ lookupEmqxUser
   :: (HasPSQL u, HasOtherEnv Cache u)
   => EmqxAuthConfig -> String -> String -> ActionH u w (Maybe EmqxUser)
 lookupEmqxUser EmqxAuthConfig {..} key token
-  | emqxSuperAdmin == key = if emqxSuperPassword == token then pure $ Just EmqxSuperAdmin
-                                                          else pure Nothing
+  | emqxSuperAdmin == key =
+    if emqxSuperPassword == token then
+      pure $ Just EmqxSuperAdmin
+    else pure Nothing
   | otherwise =
     case getEmqxAdmin emqxAdminList of
       Just _ -> pure $ Just $ EmqxAdmin $ EmqxMountPoint $ "/" ++ key
@@ -284,13 +287,22 @@ lookupEmqxUser EmqxAuthConfig {..} key token
             mdev <- getDevice did
             case mdev of
               Nothing -> pure Nothing
-              Just dev -> pure $ Just $ EmqxNormal $ EmqxMountPoint $ "/" ++ key ++ "/" ++ T.unpack (unUUID $ devUUID dev)
+              Just dev  ->
+                if devKey dev == fromString key then
+                  pure $ Just $ EmqxNormal $ devPoint dev
+                else
+                  pure Nothing
 
   where getEmqxAdmin :: [EmqxAdminConfig] -> Maybe EmqxAdminConfig
         getEmqxAdmin [] = Nothing
         getEmqxAdmin (x:xs)
           | emqxAdminKey x == key && emqxAdminPassword x == token = Just x
           | otherwise = getEmqxAdmin xs
+
+        devPoint :: Device -> EmqxMountPoint
+        devPoint Device {..} = EmqxMountPoint $ T.unpack $ "/" <> k <> "/" <> u
+          where k = unKey devKey
+                u = unUUID devUUID
 
 emqxAuthReqHandler
   :: (Monoid w, HasPSQL u, HasOtherEnv Cache u)
