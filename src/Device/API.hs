@@ -15,6 +15,8 @@ module Device.API
   , setPingAt
 
   , saveMetric
+  , removeMetric
+  , dropMetric
 
   , getEpochTimeInt
 
@@ -51,7 +53,7 @@ import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               getDevIdListByGw,
                                               getDevIdListByKey, getDevKeyById,
                                               getDevKeyId, getMetric,
-                                              getMetricIdList, removeMetric)
+                                              getMetricIdList)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Foreign.C.Types        (CTime (..))
@@ -106,7 +108,10 @@ updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -
 updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
-removeDevice devid = unCacheDevice devid $ RawAPI.removeDevice devid
+removeDevice devid = do
+  v0 <- unCacheDevice devid $ RawAPI.removeDevice devid
+  v1 <- dropMetric devid ""
+  return $ v0 + v1
 
 filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
@@ -195,6 +200,15 @@ saveMetric
 saveMetric did createdAt =
   unCacheMetric did . saveMetricValue did createdAt
 
+removeMetric
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> MetricID -> GenHaxl u w Int64
+removeMetric did = unCacheMetric did . RawAPI.removeMetric
+
+dropMetric
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> String -> GenHaxl u w Int64
+dropMetric did = unCacheMetric did . RawAPI.dropMetric did
 
 valueLookupTime :: Key.Key -> Value -> Maybe CreatedAt
 valueLookupTime k v =

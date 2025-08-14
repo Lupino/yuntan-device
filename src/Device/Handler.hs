@@ -12,6 +12,8 @@ module Device.Handler
   , rpcHandler
 
   , saveMetricHandler
+  , removeMetricHandler
+  , dropMetricHandler
   , getMetricListHandler
   ) where
 
@@ -135,8 +137,7 @@ getDeviceListHandler allowKeys = do
 -- DELETE /api/devices/:ident/
 removeDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => MqttEnv -> Device -> ActionH u w ()
 removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devKey = key} = do
-  lift $ do
-    void $ removeDevice did
+  void $ lift $ removeDevice did
   liftIO $ sendDrop mqtt uuid
   resultOK
 
@@ -198,6 +199,34 @@ saveMetricHandler Device{devID = did} = do
   case decode metric of
     Just ev -> void (lift $ saveMetric did createdAt ev) >> resultOK
     Nothing -> errBadRequest "metric field is required."
+
+
+-- DELETE /api/devices/:ident/metric/:field/:mid/
+removeMetricHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+removeMetricHandler Device{devID = did} = do
+  field <- captureParam "field"
+  mid <- MetricID <$> captureParam "mid"
+
+  lift $ do
+    mm <- getMetric mid
+    case mm of
+      Nothing -> pure ()
+      Just m  ->
+        when (metricField m == field && did == metricDevId m) $
+          void $ removeMetric did mid
+
+  resultOK
+
+-- DELETE /api/devices/:ident/metric/:field/
+dropMetricHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+dropMetricHandler Device{devID = did} = do
+  field <- captureParam "field"
+
+  lift $
+    case field of
+      "" -> pure ()
+      _  -> void $ dropMetric did field
+  resultOK
 
 
 -- GET /api/devices/:ident/metric/:field/

@@ -20,6 +20,7 @@ module Device.RawAPI
   , getMetricIdList
   , countMetric
   , removeMetric
+  , dropMetric
 
   , getLastMetricIdList
   ) where
@@ -87,6 +88,9 @@ countMetric a b c d = dataFetch (CountMetric a b c d)
 
 removeMetric :: HasPSQL u => MetricID -> GenHaxl u w Int64
 removeMetric a = uncachedRequest (RemoveMetric a)
+
+dropMetric :: HasPSQL u => DeviceID -> String -> GenHaxl u w Int64
+dropMetric a f = uncachedRequest (DropMetric a f)
 
 getLastMetricIdList :: HasPSQL u => DeviceID -> GenHaxl u w [(String, MetricID)]
 getLastMetricIdList a = dataFetch (GetLastMetricIdList a)

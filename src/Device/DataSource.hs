@@ -52,6 +52,7 @@ data DeviceReq a where
   GetMetricIdList :: DeviceID -> String -> Int64 -> Int64 -> From -> Size -> OrderBy -> DeviceReq [MetricID]
   CountMetric :: DeviceID -> String -> Int64 -> Int64 -> DeviceReq Int64
   RemoveMetric :: MetricID -> DeviceReq Int64
+  DropMetric :: DeviceID -> String -> DeviceReq Int64
   GetLastMetricIdList :: DeviceID -> DeviceReq [(String, MetricID)]
 
   deriving (Typeable)
@@ -78,7 +79,8 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (GetMetricIdList a b c d e f g) = hashWithSalt s (22::Int, a, b, c, d, e, (f, g))
   hashWithSalt s (CountMetric a b c d)           = hashWithSalt s (23::Int, a, b, c, d)
   hashWithSalt s (RemoveMetric a)                = hashWithSalt s (24::Int, a)
-  hashWithSalt s (GetLastMetricIdList a)         = hashWithSalt s (25::Int, a)
+  hashWithSalt s (DropMetric a f)                = hashWithSalt s (25::Int, a, f)
+  hashWithSalt s (GetLastMetricIdList a)         = hashWithSalt s (26::Int, a)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -236,6 +238,7 @@ fetchReq (GetMetric a)                   = getMetric a
 fetchReq (GetMetricIdList a b c d e f g) = getMetricIdList a b c d e f g
 fetchReq (CountMetric a b c d)           = countMetric a b c d
 fetchReq (RemoveMetric a)                = removeMetric a
+fetchReq (DropMetric a f)                = dropMetric a f
 fetchReq (GetLastMetricIdList a)         = getLastMetricIdList a
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq

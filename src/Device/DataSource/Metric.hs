@@ -7,6 +7,7 @@ module Device.DataSource.Metric
   , getMetricIdList
   , countMetric
   , removeMetric
+  , dropMetric
 
   , getLastMetricIdList
   , getLastMetricIdList'
@@ -58,6 +59,10 @@ countMetric did field startAt endAt = count metrics idListSql3 (did, field, star
 
 removeMetric :: MetricID -> PSQL Int64
 removeMetric mid = delete metrics "id = ?" (Only mid)
+
+dropMetric :: DeviceID -> String -> PSQL Int64
+dropMetric did ""    = delete metrics "dev_id = ?" (Only did)
+dropMetric did field = delete metrics "dev_id = ? AND field = ?" (did, field)
 
 getLastMetricIdList :: DeviceID -> PSQL [(String, MetricID)]
 getLastMetricIdList did =

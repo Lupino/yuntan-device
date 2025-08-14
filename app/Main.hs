@@ -140,5 +140,7 @@ application mqtt = do
   post "/api/devices/:ident/rpc/" $ requireDevice $ rpcHandler mqtt
   post "/api/devices/:ident/metric/" $ requireDevice saveMetricHandler
   get "/api/devices/:ident/metric/:field/" $ requireDevice getMetricListHandler
+  delete "/api/devices/:ident/metric/:field/" $ requireDevice dropMetricHandler
+  delete "/api/devices/:ident/metric/:field/:mid/" $ requireDevice removeMetricHandler
 
   where allowKeys = mAllowKeys mqtt
