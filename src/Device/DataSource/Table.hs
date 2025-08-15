@@ -42,6 +42,25 @@ createMetricTable =
     ]
 
 
+createIndexNameTable :: PSQL Int64
+createIndexNameTable =
+  PSQL.createTable "index_names"
+    [ "id SERIAL PRIMARY KEY"
+    , "name VARCHAR(128) NOT NULL"
+    , "created_at INT NOT NULL"
+    ]
+
+
+createIndexTable :: PSQL Int64
+createIndexTable =
+  PSQL.createTable "indexs"
+    [ "id SERIAL PRIMARY KEY"
+    , "name_id INT NOT NULL"
+    , "dev_id INT NOT NULL"
+    , "created_at INT NOT NULL"
+    ]
+
+
 createTable :: PSQL Int64
 createTable =
   sum <$> sequence
@@ -55,4 +74,9 @@ createTable =
     , createIndex True "device_keys" "device_key_devkey" ["devkey"]
     , createMetricTable
     , createIndex True "metrics" "metric_uniq_key" ["dev_id", "field", "created_at"]
+
+    , createIndexNameTable
+    , createIndex True "index_names" "index_name_uniq_key" ["name"]
+    , createIndexTable
+    , createIndex True "indexs" "index_uniq_key" ["name_id", "dev_id"]
     ]

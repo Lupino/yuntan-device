@@ -23,6 +23,15 @@ module Device.RawAPI
   , dropMetric
 
   , getLastMetricIdList
+
+  , getIndexNameId
+  , getIndexNameId_
+  , removeIndexName
+
+  , saveIndex
+  , removeIndex
+  , getIndexDevIdList
+  , countIndex
   ) where
 
 import           Data.Int            (Int64)
@@ -94,3 +103,24 @@ dropMetric a f = uncachedRequest (DropMetric a f)
 
 getLastMetricIdList :: HasPSQL u => DeviceID -> GenHaxl u w [(String, MetricID)]
 getLastMetricIdList a = dataFetch (GetLastMetricIdList a)
+
+getIndexNameId :: HasPSQL u => IndexName -> GenHaxl u w IndexNameId
+getIndexNameId a = dataFetch (GetIndexNameId a)
+
+getIndexNameId_ :: HasPSQL u => IndexName -> GenHaxl u w (Maybe IndexNameId)
+getIndexNameId_ a = dataFetch (GetIndexNameId_ a)
+
+removeIndexName :: HasPSQL u => IndexNameId -> GenHaxl u w Int64
+removeIndexName a = uncachedRequest (RemoveIndexName a)
+
+saveIndex :: HasPSQL u => IndexNameId -> DeviceID -> GenHaxl u w Int64
+saveIndex a b = uncachedRequest (SaveIndex a b)
+
+removeIndex :: HasPSQL u => Maybe IndexNameId -> Maybe DeviceID -> GenHaxl u w Int64
+removeIndex a b = uncachedRequest (RemoveIndex a b)
+
+getIndexDevIdList :: HasPSQL u => IndexNameId -> From -> Size -> OrderBy -> GenHaxl u w [DeviceID]
+getIndexDevIdList a b c d = dataFetch (GetIndexDevIdList a b c d)
+
+countIndex :: HasPSQL u => IndexNameId -> GenHaxl u w Int64
+countIndex a = dataFetch (CountIndex a)

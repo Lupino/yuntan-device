@@ -15,6 +15,9 @@ module Device.Types
   , MetricID (..)
   , Metric (..)
 
+  , IndexNameId (..)
+  , IndexName (..)
+
   , EmqxUser (..)
   , EmqxMountPoint (..)
   ) where
@@ -401,6 +404,71 @@ instance FromJSON Metric where
 
     let (metricRawValue, metricValue) = parseValue rv v
     return Metric{..}
+
+
+newtype IndexName = IndexName {unIndexName :: Text}
+  deriving (Show, Eq, Ord)
+
+instance Hashable IndexName where
+  hashWithSalt s (IndexName v) = hashWithSalt s v
+
+
+instance ToField IndexName where
+  toField (IndexName k) = toField k
+
+instance FromField IndexName where
+  fromField f mv = IndexName <$> fromField f mv
+
+instance IsString IndexName where
+  fromString = IndexName . fromString
+
+instance FromJSON IndexName where
+  parseJSON = withText "IndexName" $ \t -> pure $ IndexName t
+
+instance ToJSON IndexName where
+  toJSON (IndexName k) = toJSON k
+
+
+newtype IndexNameId = IndexNameId {unIndexNameId :: Int64}
+  deriving (Show, Eq, Ord)
+
+instance Hashable IndexNameId where
+  hashWithSalt s (IndexNameId v) = hashWithSalt s v
+
+instance ToField IndexNameId where
+  toField (IndexNameId k) = toField k
+
+instance FromField IndexNameId where
+  fromField f mv = IndexNameId <$> fromField f mv
+
+instance Num IndexNameId where
+  IndexNameId c1 + IndexNameId c2 = IndexNameId (c1 + c2)
+  {-# INLINABLE (+) #-}
+
+  IndexNameId c1 - IndexNameId c2 = IndexNameId (c1 - c2)
+  {-# INLINABLE (-) #-}
+
+  IndexNameId c1 * IndexNameId c2 = IndexNameId (c1 * c2)
+  {-# INLINABLE (*) #-}
+
+  abs (IndexNameId c) = IndexNameId (abs c)
+  {-# INLINABLE abs #-}
+
+  negate (IndexNameId c) = IndexNameId (negate c)
+  {-# INLINABLE negate #-}
+
+  signum (IndexNameId c) = IndexNameId (signum c)
+  {-# INLINABLE signum #-}
+
+  fromInteger = IndexNameId . fromInteger
+  {-# INLINABLE fromInteger #-}
+
+instance FromJSON IndexNameId where
+  parseJSON = withScientific "IndexNameId" $ \t ->
+    pure $ IndexNameId $ fromMaybe 0 $ toBoundedInteger t
+
+instance ToJSON IndexNameId where
+  toJSON (IndexNameId k) = toJSON k
 
 newtype EmqxMountPoint = EmqxMountPoint String deriving (Show)
 

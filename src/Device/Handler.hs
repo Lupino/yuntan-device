@@ -18,6 +18,11 @@ module Device.Handler
   , dropMetricHandler
   , getMetricListHandler
 
+  , saveIndexHandler
+  , removeIndexHandler
+  , dropDeviceIndexHandler
+  , dropIndexHandler
+
   , emqxAclReqHandler
   , emqxSuperReqHandler
   , emqxAuthReqHandler
@@ -123,6 +128,7 @@ updateDevicePingAtHandler Device{devID = did} = do
 getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
 getDeviceListHandler allowKeys = do
   key <- Key <$> safeQueryParam "key" ""
+  indexName <- IndexName <$> safeQueryParam "index_name" ""
   idents <- safeQueryParam "idents" ""
   gwid <- DeviceID <$> safeQueryParam "gw_id" 0
   if T.length idents > 0 then do
@@ -137,9 +143,18 @@ getDeviceListHandler allowKeys = do
       , getResult = devices
       }
 
-  else if key `elem` allowKeys then do
-    kid <- lift $ getDevKeyId key
-    resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
+  else if key /= "" then
+    if key `elem` allowKeys then do
+      kid <- lift $ getDevKeyId key
+      resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
+    else
+      errBadRequest "key is not exists"
+  else if indexName /= "" then do
+    mIndexNameId <- lift $ getIndexNameId_ indexName
+    case mIndexNameId of
+      Nothing -> errBadRequest "index_name is invalid"
+      Just nid ->
+        resultDeviceList (getIndexDevIdList nid) (countIndex nid)
   else if gwid > 0 then resultDeviceList (getDevIdListByGw gwid) (countDevAddrByGw gwid)
   else resultDeviceList getDevIdList countDevice
 
@@ -260,6 +275,48 @@ getMetricListHandler Device{devID = did} = do
     , getResult = catMaybes metrics
     }
 
+
+-- POST /api/devices/:ident/index/
+saveIndexHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+saveIndexHandler Device{devID = did} = do
+  indexName <- IndexName <$> formParam "index_name"
+  lift $ do
+    nid <- getIndexNameId indexName
+    void $ saveIndex nid did
+  resultOK
+
+
+-- POST /api/devices/:ident/index/delete/
+removeIndexHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+removeIndexHandler Device{devID = did} = do
+  indexName <- IndexName <$> formParam "index_name"
+  lift $ do
+    mnid <- getIndexNameId_ indexName
+    case mnid of
+      Nothing -> pure ()
+      _       -> void $ removeIndex mnid (Just did)
+  resultOK
+
+
+-- POST /api/devices/:ident/index/drop/
+dropDeviceIndexHandler :: (Monoid w, HasPSQL u) => Device -> ActionH u w ()
+dropDeviceIndexHandler Device{devID = did} = do
+  lift $ void $ removeIndex Nothing (Just did)
+  resultOK
+
+
+-- POST /api/index/drop/
+dropIndexHandler :: (Monoid w, HasPSQL u) => ActionH u w ()
+dropIndexHandler = do
+  indexName <- IndexName <$> formParam "index_name"
+  lift $ do
+    mnid <- getIndexNameId_ indexName
+    case mnid of
+      Nothing -> pure ()
+      Just nid -> do
+        void $ removeIndexName nid
+        void $ removeIndex mnid Nothing
+  resultOK
 
 emqxSuperReqHandler :: ActionH u w ()
 emqxSuperReqHandler = text "ok"

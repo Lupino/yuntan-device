@@ -47,13 +47,16 @@ import           Data.UnixTime
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
-                                              countDeviceByKey, countMetric,
-                                              createDevice, createTable,
-                                              getDevIdByCol, getDevIdList,
-                                              getDevIdListByGw,
+                                              countDeviceByKey, countIndex,
+                                              countMetric, createDevice,
+                                              createTable, getDevIdByCol,
+                                              getDevIdList, getDevIdListByGw,
                                               getDevIdListByKey, getDevKeyById,
-                                              getDevKeyId, getMetric,
-                                              getMetricIdList)
+                                              getDevKeyId, getIndexDevIdList,
+                                              getIndexNameId, getIndexNameId_,
+                                              getMetric, getMetricIdList,
+                                              removeIndex, removeIndexName,
+                                              saveIndex)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import           Foreign.C.Types        (CTime (..))
@@ -111,7 +114,8 @@ removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int6
 removeDevice devid = do
   v0 <- unCacheDevice devid $ RawAPI.removeDevice devid
   v1 <- dropMetric devid ""
-  return $ v0 + v1
+  v2 <- RawAPI.removeIndex Nothing (Just devid)
+  return $ v0 + v1 + v2
 
 filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
@@ -273,7 +277,6 @@ getLastMetric_ did = do
 getLastMetric :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
 getLastMetric did = do
   cached' redisEnv (genMetricKey did) $ getLastMetric_ did
-
 
 toHex :: ByteString -> Text
 toHex = toLower . decodeUtf8 . B16.encode

@@ -146,6 +146,11 @@ application mqtt mEmqxAuth = do
   delete "/api/devices/:ident/metric/:field/" $ requireDevice dropMetricHandler
   delete "/api/devices/:ident/metric/:field/:mid/" $ requireDevice removeMetricHandler
 
+  post "/api/devices/:ident/index/" $ requireDevice saveIndexHandler
+  post "/api/devices/:ident/index/delete/" $ requireDevice removeIndexHandler
+  post "/api/devices/:ident/index/drop/" $ requireDevice dropDeviceIndexHandler
+  post "/api/index/drop/" dropIndexHandler
+
   case mEmqxAuth of
     Nothing -> pure ()
     Just emqxAuth -> do

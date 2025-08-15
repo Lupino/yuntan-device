@@ -23,6 +23,7 @@ library
                      , Device.DataSource.Device
                      , Device.DataSource.Metric
                      , Device.DataSource.Table
+                     , Device.DataSource.Index
 
                      , Device.MQTT
 

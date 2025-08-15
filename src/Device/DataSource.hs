@@ -24,6 +24,7 @@ import           Database.PSQL.Types      (From, HasPSQL, OrderBy, PSQL,
                                            PSQLPool, Size, TablePrefix,
                                            psqlPool, runPSQLPool)
 import           Device.DataSource.Device
+import           Device.DataSource.Index
 import           Device.DataSource.Metric
 import           Device.DataSource.Table
 import           Device.Types
@@ -55,6 +56,15 @@ data DeviceReq a where
   DropMetric :: DeviceID -> String -> DeviceReq Int64
   GetLastMetricIdList :: DeviceID -> DeviceReq [(String, MetricID)]
 
+  GetIndexNameId :: IndexName -> DeviceReq IndexNameId
+  GetIndexNameId_ :: IndexName -> DeviceReq (Maybe IndexNameId)
+  RemoveIndexName :: IndexNameId -> DeviceReq Int64
+
+  SaveIndex :: IndexNameId -> DeviceID -> DeviceReq Int64
+  RemoveIndex :: Maybe IndexNameId -> Maybe DeviceID -> DeviceReq Int64
+  GetIndexDevIdList :: IndexNameId -> From -> Size -> OrderBy -> DeviceReq [DeviceID]
+  CountIndex :: IndexNameId -> DeviceReq Int64
+
   deriving (Typeable)
 
 deriving instance Eq (DeviceReq a)
@@ -81,6 +91,15 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (RemoveMetric a)                = hashWithSalt s (24::Int, a)
   hashWithSalt s (DropMetric a f)                = hashWithSalt s (25::Int, a, f)
   hashWithSalt s (GetLastMetricIdList a)         = hashWithSalt s (26::Int, a)
+
+  hashWithSalt s (GetIndexNameId a)              = hashWithSalt s (27::Int, a)
+  hashWithSalt s (GetIndexNameId_ a)             = hashWithSalt s (28::Int, a)
+  hashWithSalt s (RemoveIndexName a)             = hashWithSalt s (29::Int, a)
+
+  hashWithSalt s (SaveIndex a b)                 = hashWithSalt s (30::Int, a, b)
+  hashWithSalt s (RemoveIndex a b)               = hashWithSalt s (31::Int, a, b)
+  hashWithSalt s (GetIndexDevIdList a b c d)     = hashWithSalt s (32::Int, a, b, c, d)
+  hashWithSalt s (CountIndex a)                  = hashWithSalt s (33::Int, a)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -240,6 +259,15 @@ fetchReq (CountMetric a b c d)           = countMetric a b c d
 fetchReq (RemoveMetric a)                = removeMetric a
 fetchReq (DropMetric a f)                = dropMetric a f
 fetchReq (GetLastMetricIdList a)         = getLastMetricIdList a
+
+fetchReq (GetIndexNameId a)              = getIndexNameId a
+fetchReq (GetIndexNameId_ a)             = getIndexNameId_ a
+fetchReq (RemoveIndexName a)             = removeIndexName a
+
+fetchReq (SaveIndex a b)                 = saveIndex a b
+fetchReq (RemoveIndex a b)               = removeIndex a b
+fetchReq (GetIndexDevIdList a b c d)     = getIndexDevIdList a b c d
+fetchReq (CountIndex a)                  = countIndex a
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq
 initDeviceState = DeviceState
