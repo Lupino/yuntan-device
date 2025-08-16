@@ -55,6 +55,7 @@ data AuthInfo = AuthInfo
   , authIndexList :: [IndexName]
   , authDevId     :: Maybe DeviceID
   , authExpireAt  :: Maybe Int64
+  , authNonce     :: String
   }
   deriving (Show, Eq, Ord)
 
@@ -64,14 +65,16 @@ instance FromJSON AuthInfo where
     authIndexList <- o .:? "ins" .!= []
     authDevId     <- o .:? "did"
     authExpireAt  <- o .:? "exp"
+    authNonce     <- o .:? "nonce"
     return AuthInfo{..}
 
 instance ToJSON AuthInfo where
   toJSON AuthInfo {..} = object
-    [ "rol" .= authRole
-    , "did" .= authDevId
-    , "ins" .= authIndexList
-    , "exp" .= authExpireAt
+    [ "rol"   .= authRole
+    , "did"   .= authDevId
+    , "ins"   .= authIndexList
+    , "exp"   .= authExpireAt
+    , "nonce" .= authNonce
     ]
 
 
