@@ -45,7 +45,7 @@ extra-deps:
 - git: https://github.com/facebook/Haxl.git
   commit: 037506e2f082c9b9bab3a473ef117fe0fdc1e35f
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: f1b6f7692260fba888ca938adb145cfdcd8cc013
+  commit: ceb7b77f5fd03ceba9f095f0a225dcc671436414
   subdirs:
   - psql-utils
   - aeson-result

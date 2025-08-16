@@ -17,8 +17,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     Device
                      , Device.API
+                     , Device.Auth
                      , Device.RawAPI
                      , Device.Types
+                     , Device.Util
                      , Device.DataSource
                      , Device.DataSource.Device
                      , Device.DataSource.Metric
@@ -64,6 +66,8 @@ library
                      , unordered-containers
                      , scientific
                      , base16-bytestring
+
+                     , jose-jwt
   default-language:    Haskell2010
 
 executable yuntan-device
@@ -85,6 +89,7 @@ executable yuntan-device
                      , rediscaching-haxl
                      , net-mqtt
                      , text
+                     , bytestring
   default-language:    Haskell2010
 
 source-repository head

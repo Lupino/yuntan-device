@@ -42,6 +42,9 @@ redis:
 #   - key: 1234567890abcggg
 #     password: password
 
+# auth_enable: True
+# auth_key: fnsNK0ro6wg6RkWcXJx3Ft0
+
 mqtt: mqtt://user:passwd@gw.huabot.com:11883
 # allow_keys:
 # - 1234567890abcdef

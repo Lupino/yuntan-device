@@ -18,8 +18,6 @@ module Device.API
   , removeMetric
   , dropMetric
 
-  , getEpochTimeInt
-
   , module X
   ) where
 
@@ -43,7 +41,6 @@ import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import           Data.UnixTime
 import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
@@ -59,7 +56,7 @@ import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               saveIndex)
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
-import           Foreign.C.Types        (CTime (..))
+import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
 import           Haxl.RedisCache        (cached, cached', get, remove, set)
 import           System.Entropy         (getEntropy)
@@ -121,13 +118,8 @@ filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
 filterMeta _ nv _ = nv
 
-getEpochTimeInt :: GenHaxl u w Int64
-getEpochTimeInt = liftIO $ un . toEpochTime <$> getUnixTime
-  where un :: CTime -> Int64
-        un (CTime t) = t
-
 getEpochTime :: GenHaxl u w CreatedAt
-getEpochTime = CreatedAt <$> getEpochTimeInt
+getEpochTime = CreatedAt <$> Util.getEpochTime
 
 valueLookup :: Key.Key -> Value -> Maybe Value
 valueLookup key (Object ov) = KeyMap.lookup key ov

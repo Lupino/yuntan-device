@@ -15,11 +15,10 @@ module Device.DataSource.Metric
 
 
 import           Data.Int            (Int64)
-import           Database.PSQL.Types (From (..), Only (..), OrderBy, PSQL,
-                                      Size (..), TableName, count, delete,
-                                      group, insertOrUpdate, orderNone,
-                                      selectAllRaw, selectIn, selectInRaw,
-                                      selectOne, selectOnly)
+import           Database.PSQL.Types (Only (..), PSQL, Page (..), TableName,
+                                      count, delete, group, insertOrUpdate,
+                                      pageNone, selectAllRaw, selectIn,
+                                      selectInRaw, selectOne, selectOnly)
 import           Device.Types
 
 metrics :: TableName
@@ -43,7 +42,7 @@ idListSql1 = "dev_id = ? AND field = ? AND created_at > ?"
 idListSql2 = "dev_id = ? AND created_at BETWEEN ? AND ?"
 idListSql3 = "dev_id = ? AND field = ? AND created_at BETWEEN ? AND ?"
 
-getMetricIdList :: DeviceID -> String -> Int64 -> Int64 -> From -> Size -> OrderBy -> PSQL [MetricID]
+getMetricIdList :: DeviceID -> String -> Int64 -> Int64 -> Page -> PSQL [MetricID]
 getMetricIdList did ""    startAt 0 = selectOnly metrics "id" idListSql0 (did, startAt)
 getMetricIdList did field startAt 0 = selectOnly metrics "id" idListSql1 (did, field, startAt)
 
@@ -66,8 +65,8 @@ dropMetric did field = delete metrics "dev_id = ? AND field = ?" (did, field)
 
 getLastMetricIdList :: DeviceID -> PSQL [(String, MetricID)]
 getLastMetricIdList did =
-  selectAllRaw metrics ["field", "max(id)"] "dev_id = ?" (Only did) (group "field") orderNone
+  selectAllRaw metrics ["field", "max(id)"] "dev_id = ?" (Only did) (group "field")
 
 getLastMetricIdList' :: [DeviceID] -> PSQL [(DeviceID, String, MetricID)]
 getLastMetricIdList' dids =
-  selectInRaw metrics ["dev_id", "field", "max(id)"]  "dev_id" dids "" () (group "dev_id, field") orderNone
+  selectInRaw metrics ["dev_id", "field", "max(id)"]  "dev_id" dids "" () pageNone (group "dev_id, field")

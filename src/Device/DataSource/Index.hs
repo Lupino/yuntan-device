@@ -12,23 +12,19 @@ module Device.DataSource.Index
   ) where
 
 
-import           Control.Monad.IO.Class (liftIO)
-import           Data.Int               (Int64)
-import           Data.UnixTime
-import           Database.PSQL.Types    (From (..), Only (..), OrderBy, PSQL,
-                                         Size (..), TableName, count, delete,
-                                         insertOrUpdate, insertRet,
-                                         selectOneOnly, selectOnly)
+import           Data.Int            (Int64)
+import           Database.PSQL.Types (Only (..), PSQL, Page (..), TableName,
+                                      count, countInRaw, delete, insertOrUpdate,
+                                      insertRet, selectInOnly, selectOneOnly,
+                                      selectOnly)
 import           Device.Types
+import           Device.Util         (getEpochTime)
 
 indexNames :: TableName
 indexNames = "index_names"
 
 indexs :: TableName
 indexs = "indexs"
-
-getEpochTime :: PSQL String
-getEpochTime = liftIO $ show . toEpochTime <$> getUnixTime
 
 createIndexName :: IndexName -> PSQL IndexNameId
 createIndexName name = do
@@ -64,8 +60,14 @@ removeIndex (Just nid) Nothing = delete indexs "name_id = ?" (Only nid)
 removeIndex Nothing (Just did) = delete indexs "dev_id = ?" (Only did)
 removeIndex _ _ = pure 0
 
-getIndexDevIdList :: IndexNameId -> From -> Size -> OrderBy -> PSQL [DeviceID]
-getIndexDevIdList nid = selectOnly indexs "dev_id" "name_id = ?" (Only nid)
+getIndexDevIdList :: [IndexNameId] -> Page -> PSQL [DeviceID]
+getIndexDevIdList [] _   = pure []
+getIndexDevIdList [x] p  = selectOnly indexs "dev_id" "name_id = ?" (Only x) p
+getIndexDevIdList nids p = selectInOnly indexs ["dev_id"] "name_id" nids "" () p
 
-countIndex :: IndexNameId -> PSQL Int64
-countIndex nid = count indexs "name_id = ?" (Only nid)
+countIndex :: [IndexNameId] -> Maybe DeviceID -> PSQL Int64
+countIndex [] Nothing       = pure 0
+countIndex [nid] Nothing    = count indexs "name_id                    = ?" (Only nid)
+countIndex [nid] (Just did) = count indexs "name_id                    = ? AND dev_id  = ?" (nid, did)
+countIndex nids Nothing     = countInRaw indexs "name_id" nids "" ()
+countIndex nids (Just did)  = countInRaw indexs "name_id" nids "dev_id = ?" (Only did)

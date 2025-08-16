@@ -27,15 +27,14 @@ import           Data.Int               (Int64)
 import           Data.Maybe             (fromMaybe)
 import           Data.String            (fromString)
 import           Data.Text              (Text)
-import           Data.UnixTime
 import           Data.UUID              (toText)
 import           Data.UUID.V4           (nextRandom)
-import           Database.PSQL.Types    (From (..), Only (..), OrderBy, PSQL,
-                                         Size (..), TableName, count, count_,
-                                         delete, insertRet, selectIn, selectOne,
-                                         selectOneOnly, selectOnly, selectOnly_,
-                                         update)
+import           Database.PSQL.Types    (Only (..), PSQL, Page (..), TableName,
+                                         count, count_, delete, insertRet,
+                                         selectIn, selectOne, selectOneOnly,
+                                         selectOnly, selectOnly_, update)
 import           Device.Types
+import           Device.Util            (getEpochTime)
 
 devices :: TableName
 devices = "devices"
@@ -49,8 +48,8 @@ getDevKeyId_ key = selectOneOnly deviceKeys "id" "devkey = ?" (Only key)
 
 createDevKey :: Key -> PSQL KeyID
 createDevKey key = do
-  t <- liftIO getUnixTime
-  insertRet deviceKeys ["devkey", "created_at"] "id" (key, show $ toEpochTime t) 0
+  t <- getEpochTime
+  insertRet deviceKeys ["devkey", "created_at"] "id" (key, t) 0
 
 getDevKeyId :: Key -> PSQL KeyID
 getDevKeyId key = do
@@ -67,10 +66,10 @@ getDevKeyList = selectIn deviceKeys ["id", "devkey"] "id"
 
 createDevice :: KeyID -> Token -> Addr -> PSQL DeviceID
 createDevice kid token addr = do
-  t <- liftIO getUnixTime
+  t <- getEpochTime
   uuid <- liftIO $ toText <$> nextRandom
   insertRet devices ["key_id", "token", "uuid", "addr", "gw_id", "meta", "created_at"] "id"
-    (kid, token, uuid, addr, gwid, meta, show $ toEpochTime t) 0
+    (kid, token, uuid, addr, gwid, meta, t) 0
 
   where meta :: String
         meta = "{}"
@@ -85,13 +84,13 @@ getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
 getDeviceList :: [DeviceID] -> PSQL [Device]
 getDeviceList = selectIn devices ["*"] "id"
 
-getDevIdList :: From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdList :: Page -> PSQL [DeviceID]
 getDevIdList = selectOnly_ devices "id"
 
 countDevice :: PSQL Int64
 countDevice = count_ devices
 
-getDevIdListByKey :: KeyID -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByKey :: KeyID -> Page -> PSQL [DeviceID]
 getDevIdListByKey kid =
   selectOnly devices "id" "key_id = ?" (Only kid)
 
@@ -112,7 +111,7 @@ getDevIdListByCol :: String -> [Text] -> PSQL [(Text, DeviceID)]
 getDevIdListByCol col' = selectIn devices [col, "id"] col
   where col = fromString col'
 
-getDevIdListByGw :: DeviceID -> From -> Size -> OrderBy -> PSQL [DeviceID]
+getDevIdListByGw :: DeviceID -> Page -> PSQL [DeviceID]
 getDevIdListByGw gwid =
   selectOnly devices "id" "gw_id = ?" (Only gwid)
 

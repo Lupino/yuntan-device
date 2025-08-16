@@ -6,6 +6,7 @@ module Main
   ) where
 
 import           Control.Monad                        (void, when)
+import           Data.ByteString                      (ByteString)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
@@ -22,6 +23,7 @@ import           Haxl.RedisCache                      (initRedisState)
 import           Web.Scotty.Haxl                      (ScottyH)
 
 import           Device
+import qualified Device.Auth                          as Auth
 import           Device.Handler
 import           Haxl.Core                            (GenHaxl, StateStore,
                                                        initEnv, runHaxl,
@@ -93,6 +95,8 @@ program Options
       mqttConfig   = C.mqttConfig conf
       emqxAuth     = C.emqxAuth conf
       allowKeys    = C.allowKeys conf
+      authEnable   = C.authEnable conf
+      authKey      = C.authKey conf
 
 
   pool <- C.genPSQLPool psqlConfig
@@ -117,7 +121,7 @@ program Options
   mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \tp uuid bs ->
     runIO0 $ updateDeviceMetaByUUID tp uuid bs
 
-  scottyOptsT opts runIO0 (application mqtt emqxAuth)
+  scottyOptsT opts runIO0 (application mqtt emqxAuth authEnable authKey)
   where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
@@ -125,31 +129,33 @@ program Options
 
 application
   :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w)
-  => MqttEnv -> Maybe C.EmqxAuthConfig -> ScottyH u w ()
-application mqtt mEmqxAuth = do
+  => MqttEnv -> Maybe C.EmqxAuthConfig -> Bool -> ByteString -> ScottyH u w ()
+application mqtt mEmqxAuth authEnable authKey = do
   middleware logStdout
 
-  post "/api/devices/" $ createDeviceHandler allowKeys
-  post "/api/devices/:ident/token/" $ requireDevice $ updateDeviceHandler "token"
-  post "/api/devices/:ident/uuid/" $ requireDevice $ updateDeviceHandler "uuid"
-  post "/api/devices/:ident/addr/" $ requireDevice $ updateDeviceHandler "addr"
-  post "/api/devices/:ident/gw_id/" $ requireDevice $ updateDeviceHandler "gw_id"
-  post "/api/devices/:ident/created_at/" $ requireDevice $ updateDeviceHandler "created_at"
-  post "/api/devices/:ident/ping_at/" $ requireDevice updateDevicePingAtHandler
-  post "/api/devices/:ident/meta/" $ requireDevice updateDeviceMetaHandler
-  get "/api/devices/" $ getDeviceListHandler allowKeys
-  delete "/api/devices/:ident/" $ requireDevice (removeDeviceHandler mqtt)
-  get "/api/devices/:ident/" $ requireDevice getDeviceHandler
-  post "/api/devices/:ident/rpc/" $ requireDevice $ rpcHandler mqtt
-  post "/api/devices/:ident/metric/" $ requireDevice saveMetricHandler
-  get "/api/devices/:ident/metric/:field/" $ requireDevice getMetricListHandler
-  delete "/api/devices/:ident/metric/:field/" $ requireDevice dropMetricHandler
-  delete "/api/devices/:ident/metric/:field/:mid/" $ requireDevice removeMetricHandler
+  post "/api/devices/"                             $ requireAdmin $ createDeviceHandler allowKeys
+  post "/api/devices/:ident/token/"                $ rdp $ updateDeviceHandler "token"
+  post "/api/devices/:ident/uuid/"                 $ rdp $ updateDeviceHandler "uuid"
+  post "/api/devices/:ident/addr/"                 $ rdp $ updateDeviceHandler "addr"
+  post "/api/devices/:ident/gw_id/"                $ rdp $ updateDeviceHandler "gw_id"
+  post "/api/devices/:ident/created_at/"           $ rdp $ updateDeviceHandler "created_at"
+  post "/api/devices/:ident/ping_at/"              $ rdp updateDevicePingAtHandler
+  post "/api/devices/:ident/meta/"                 $ rdp updateDeviceMetaHandler
+  get "/api/devices/"                              $ requireIndexName $ getDeviceListHandler allowKeys
+  get "/api/devices/:ident/"                       $ rdp getDeviceHandler
+  post "/api/devices/:ident/rpc/"                  $ rdp $ rpcHandler mqtt
+  post "/api/devices/:ident/metric/"               $ rdp saveMetricHandler
+  get "/api/devices/:ident/metric/:field/"         $ rdp getMetricListHandler
 
-  post "/api/devices/:ident/index/" $ requireDevice saveIndexHandler
-  post "/api/devices/:ident/index/delete/" $ requireDevice removeIndexHandler
-  post "/api/devices/:ident/index/drop/" $ requireDevice dropDeviceIndexHandler
-  post "/api/index/drop/" dropIndexHandler
+  delete "/api/devices/:ident/"                    $ rad (removeDeviceHandler mqtt)
+  delete "/api/devices/:ident/metric/:field/"      $ rad dropMetricHandler
+  delete "/api/devices/:ident/metric/:field/:mid/" $ rad removeMetricHandler
+
+  post "/api/devices/:ident/index/"                $ rdp saveIndexHandler
+  post "/api/devices/:ident/index/delete/"         $ rad removeIndexHandler
+  post "/api/devices/:ident/index/drop/"           $ rad dropDeviceIndexHandler
+  post "/api/index/drop/"                          $ requireAdmin dropIndexHandler
+  post "/api/gen_token/"                           $ requireAdmin $ Auth.genTokenHandler authKey
 
   case mEmqxAuth of
     Nothing -> pure ()
@@ -159,3 +165,8 @@ application mqtt mEmqxAuth = do
       post "/mqtt/auth" $ emqxAuthReqHandler emqxAuth
 
   where allowKeys = mAllowKeys mqtt
+        requireAdmin = Auth.requireAdmin authEnable authKey
+        requirePerm = Auth.requirePerm authEnable authKey
+        requireIndexName = Auth.requireIndexName authEnable authKey
+        rdp = requireDevice . requirePerm
+        rad = requireAdmin . requireDevice

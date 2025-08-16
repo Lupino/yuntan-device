@@ -40,12 +40,13 @@ import           Data.String            (fromString)
 import qualified Data.Text              as T (length, null, pack, splitOn,
                                               unpack)
 import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
-                                         OrderBy, Size (..), asc, desc)
+                                         Page (..), Size (..), asc, desc)
 import           Device
 import           Device.Config          (Cache, EmqxAdminConfig (..),
                                          EmqxAuthConfig (..))
 import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
                                          request, sendDrop)
+import           Device.Util            (getEpochTime, parseIndexName)
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status400, status500)
 import           Web.Scotty.Haxl        (ActionH)
@@ -128,7 +129,7 @@ updateDevicePingAtHandler Device{devID = did} = do
 getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
 getDeviceListHandler allowKeys = do
   key <- Key <$> safeQueryParam "key" ""
-  indexName <- IndexName <$> safeQueryParam "index_name" ""
+  indexNames <- parseIndexName <$> safeQueryParam "index_name" ""
   idents <- safeQueryParam "idents" ""
   gwid <- DeviceID <$> safeQueryParam "gw_id" 0
   if T.length idents > 0 then do
@@ -149,12 +150,12 @@ getDeviceListHandler allowKeys = do
       resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
     else
       errBadRequest "key is not exists"
-  else if indexName /= "" then do
-    mIndexNameId <- lift $ getIndexNameId_ indexName
-    case mIndexNameId of
-      Nothing -> errBadRequest "index_name is invalid"
-      Just nid ->
-        resultDeviceList (getIndexDevIdList nid) (countIndex nid)
+  else if length indexNames > 0 then do
+    nids <- lift $ catMaybes <$> mapM getIndexNameId_ indexNames
+    if null nids then
+      errBadRequest "index_name is invalid"
+    else
+      resultDeviceList (getIndexDevIdList nids) (countIndex nids Nothing)
   else if gwid > 0 then resultDeviceList (getDevIdListByGw gwid) (countDevAddrByGw gwid)
   else resultDeviceList getDevIdList countDevice
 
@@ -181,13 +182,13 @@ resultOKOrErr o m = if o > 0 then resultOK
 
 resultDeviceList
   :: (HasPSQL u, HasOtherEnv Cache u, Monoid w)
-  => (From -> Size -> OrderBy -> GenHaxl u w [DeviceID])
+  => (Page -> GenHaxl u w [DeviceID])
   -> GenHaxl u w Int64 -> ActionH u w ()
 resultDeviceList getList count = do
   from <- From <$> safeQueryParam "from" 0
   size <- Size <$> safeQueryParam "size" 10
   total <- lift count
-  devices <- lift $ mapM getDevice =<< getList from size (desc "id")
+  devices <- lift $ mapM getDevice =<< getList Page { pageFrom = from, pageSize = size, pageOrder = desc "id" }
 
   okListResult "devices" List
     { getFrom   = unFrom from
@@ -218,7 +219,7 @@ rpcHandler mqtt_ Device{devUUID = uuid, devKey = key} = do
 saveMetricHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 saveMetricHandler Device{devID = did} = do
   metric <- formParam "metric"
-  ct <- lift getEpochTimeInt
+  ct <- getEpochTime
   createdAt <- CreatedAt <$> safeFormParam "created_at" ct
   case decode metric of
     Just ev -> void (lift $ saveMetric did createdAt ev) >> resultOK
@@ -264,9 +265,10 @@ getMetricListHandler Device{devID = did} = do
   s <- safeQueryParam "sort" ("asc" :: String)
 
   let sort = if s == "asc" then asc else desc
+      page = Page { pageFrom = from, pageSize = size, pageOrder = sort "created_at" }
 
   total <- lift $ countMetric did field startedAt endedAt
-  metrics <- lift $ mapM getMetric =<< getMetricIdList did field startedAt endedAt from size (sort "created_at")
+  metrics <- lift $ mapM getMetric =<< getMetricIdList did field startedAt endedAt page
 
   okListResult "data" List
     { getFrom   = unFrom from

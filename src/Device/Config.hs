@@ -17,6 +17,8 @@ module Device.Config
 
 import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
                                        (.:), (.:?))
+import           Data.ByteString      (ByteString)
+import           Data.String          (fromString)
 import           Database.PSQL.Config (PSQL (..), genPSQLPool)
 import           Database.PSQL.Types  (HasOtherEnv, otherEnv)
 import           Database.Redis       (Connection)
@@ -57,6 +59,8 @@ data Config = Config
   , redisConfig :: RedisConfig
   , allowKeys   :: [Key]
   , emqxAuth    :: Maybe EmqxAuthConfig
+  , authEnable  :: Bool
+  , authKey     :: ByteString
   }
   deriving (Show)
 
@@ -67,6 +71,8 @@ instance FromJSON Config where
     redisConfig  <- o .:? "redis" .!= defaultRedisConfig
     allowKeys  <- o .:? "allow_keys" .!= []
     emqxAuth <- o .:? "emqx_auth"
+    authEnable <- o .:? "auth_enable" .!= False
+    authKey <- fromString <$> o .:? "auth_key" .!= ""
     case parseURI mqtt of
       Nothing         -> fail "invalid mqtt uri"
       Just mqttConfig -> return Config{..}
