@@ -41,7 +41,7 @@ import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import           Database.PSQL.Types    (HasOtherEnv, HasPSQL)
+import           Database.PSQL.Types    (Column, HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               countDeviceByKey, countIndex,
@@ -104,7 +104,7 @@ updateDeviceMeta
   => DeviceID -> Meta -> GenHaxl u w Int64
 updateDeviceMeta devid = updateDevice devid "meta" . decodeUtf8 . LB.toStrict . encode
 
-updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> String -> Text -> GenHaxl u w Int64
+updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> Column -> Text -> GenHaxl u w Int64
 updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64

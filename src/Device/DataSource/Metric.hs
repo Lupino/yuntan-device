@@ -4,13 +4,11 @@ module Device.DataSource.Metric
   ( saveMetric
   , getMetric
   , getMetricList
-  , getMetricIdList
-  , countMetric
-  , removeMetric
-  , dropMetric
 
   , getLastMetricIdList
   , getLastMetricIdList'
+
+  , metrics
   ) where
 
 
@@ -36,32 +34,6 @@ getMetric mid = selectOne metrics ["*"] "id = ?" (Only mid)
 
 getMetricList :: [MetricID] -> PSQL [Metric]
 getMetricList = selectIn metrics ["*"] "id"
-
-idListSql0 = "dev_id = ? AND created_at > ?"
-idListSql1 = "dev_id = ? AND field = ? AND created_at > ?"
-idListSql2 = "dev_id = ? AND created_at BETWEEN ? AND ?"
-idListSql3 = "dev_id = ? AND field = ? AND created_at BETWEEN ? AND ?"
-
-getMetricIdList :: DeviceID -> String -> Int64 -> Int64 -> Page -> PSQL [MetricID]
-getMetricIdList did ""    startAt 0 = selectOnly metrics "id" idListSql0 (did, startAt)
-getMetricIdList did field startAt 0 = selectOnly metrics "id" idListSql1 (did, field, startAt)
-
-getMetricIdList did ""    startAt endAt = selectOnly metrics "id" idListSql2 (did, startAt, endAt)
-getMetricIdList did field startAt endAt = selectOnly metrics "id" idListSql3 (did, field, startAt, endAt)
-
-countMetric :: DeviceID -> String -> Int64 -> Int64 -> PSQL Int64
-countMetric did ""    startAt 0 = count metrics idListSql0 (did, startAt)
-countMetric did field startAt 0 = count metrics idListSql1 (did, field, startAt)
-
-countMetric did ""    startAt endAt = count metrics idListSql2 (did, startAt, endAt)
-countMetric did field startAt endAt = count metrics idListSql3 (did, field, startAt, endAt)
-
-removeMetric :: MetricID -> PSQL Int64
-removeMetric mid = delete metrics "id = ?" (Only mid)
-
-dropMetric :: DeviceID -> String -> PSQL Int64
-dropMetric did ""    = delete metrics "dev_id = ?" (Only did)
-dropMetric did field = delete metrics "dev_id = ? AND field = ?" (did, field)
 
 getLastMetricIdList :: DeviceID -> PSQL [(String, MetricID)]
 getLastMetricIdList did =

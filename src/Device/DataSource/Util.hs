@@ -1,34 +1,45 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Device.DataSource.Util
-  ( updateById
-  , removeById
+  ( addOne_
+  , addOne
+  , updateById
+  , removeBy
 
   , getIdByCol
   , getIdListInCol
 
-  , getIdListByCol
-  , countByCol
+  , getIdListBy
+  , countBy
 
-  , getIdList
+  , getIdListAll
   , countAll
   ) where
 
 import           Data.Int            (Int64)
 import           Data.String         (fromString)
 import           Data.Text           (Text)
-import           Database.PSQL.Types (Only (..), PSQL, Page (..), TableName,
-                                      count, count_, delete, selectIn,
+import           Database.PSQL.Types (Action, Columns, Only (..), PSQL,
+                                      Page (..), TableName, count, count_,
+                                      delete, insertRet, selectIn,
                                       selectOneOnly, selectOnly, selectOnly_,
-                                      update)
+                                      toRow, update)
+import           Device.Util         (getEpochTime)
 
-updateById :: TableName -> Int64 -> String -> Text -> PSQL Int64
-updateById tb byId col val =
-  update tb [fromString col] "id = ?" (val, byId)
+addOne_ :: TableName -> Columns -> [Action] -> PSQL Int64
+addOne_ tb cols vals = insertRet tb cols "id" vals 0
 
-removeById :: TableName -> Int64 -> PSQL Int64
-removeById tb byId = delete tb "id = ?" (Only byId)
+addOne :: TableName -> Columns -> [Action] -> PSQL Int64
+addOne tb cols vals = do
+  t <- getEpochTime
+  addOne_ tb (cols ++ ["created_at"]) (vals ++ toRow (Only t))
 
+updateById :: TableName -> Int64 -> Columns -> [Action] -> PSQL Int64
+updateById tb byId cols vals =
+  update tb cols "id = ?"  $ vals ++ toRow (Only byId)
+
+removeBy :: TableName -> String -> [Action] -> PSQL Int64
+removeBy = delete
 
 getIdByCol :: TableName -> String -> Text -> PSQL (Maybe Int64)
 getIdByCol tb col val = selectOneOnly tb "id"  (col ++ " = ?") (Only val)
@@ -37,15 +48,14 @@ getIdListInCol :: TableName -> String -> [Text] -> PSQL [(Text, Int64)]
 getIdListInCol tb col' = selectIn tb [col, "id"] col
   where col = fromString col'
 
-getIdListByCol :: TableName -> String -> Text -> Page -> PSQL [Int64]
-getIdListByCol tb col val =
-  selectOnly tb "id" (col ++ " = ?") (Only val)
+getIdListBy :: TableName -> String -> [Action] -> Page -> PSQL [Int64]
+getIdListBy tb sql vals = selectOnly tb "id" sql vals
 
-countByCol :: TableName -> String -> Text -> PSQL Int64
-countByCol tb col val = count tb (col ++ " = ?") (Only val)
+countBy :: TableName -> String -> [Action] -> PSQL Int64
+countBy tb sql vals = count tb sql vals
 
-getIdList :: TableName -> Page -> PSQL [Int64]
-getIdList tb = selectOnly_ tb "id"
+getIdListAll :: TableName -> Page -> PSQL [Int64]
+getIdListAll tb = selectOnly_ tb "id"
 
 countAll :: TableName -> PSQL Int64
 countAll = count_

@@ -39,8 +39,11 @@ import           Data.Maybe             (catMaybes)
 import           Data.String            (fromString)
 import qualified Data.Text              as T (length, null, pack, splitOn,
                                               unpack)
-import           Database.PSQL.Types    (From (..), HasOtherEnv, HasPSQL,
-                                         Page (..), Size (..), asc, desc)
+import           Data.UUID              (toText)
+import           Data.UUID.V4           (nextRandom)
+import           Database.PSQL.Types    (Column (..), From (..), HasOtherEnv,
+                                         HasPSQL, Page (..), Size (..), asc,
+                                         desc)
 import           Device
 import           Device.Config          (Cache, EmqxAdminConfig (..),
                                          EmqxAuthConfig (..))
@@ -93,9 +96,10 @@ createDeviceHandler allowKeys = do
   if key `elem` allowKeys then do
     kid <- lift $ getDevKeyId key
     token <- Token <$> formParam "token"
-    addr <- lift randomAddr
     checkUsed (getDevIdByCol "token" (unToken token)) "token is already used" $ do
-      devid <- lift $ createDevice kid token addr
+      uuid <- liftIO $ UUID . toText <$> nextRandom
+      addr <- lift randomAddr
+      devid <- lift $ createDevice kid token addr uuid
       json =<< lift (getDevice devid)
 
   else errBadRequest "key is invalid"
@@ -104,11 +108,11 @@ createDeviceHandler allowKeys = do
 -- POST /api/devices/:ident/uuid/
 -- POST /api/devices/:ident/addr/
 -- POST /api/devices/:ident/gw_id/
-updateDeviceHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => String -> Device -> ActionH u w ()
+updateDeviceHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Column -> Device -> ActionH u w ()
 updateDeviceHandler field Device{devID = did} = do
-  value <- formParam $ T.pack field
+  value <- formParam $ T.pack $ unColumn field
   ret <- lift $ updateDevice did field value
-  resultOKOrErr ret $ "update device " ++ field ++ " failed"
+  resultOKOrErr ret $ "update device " ++ unColumn field ++ " failed"
 
 -- POST /api/devices/:ident/meta/
 updateDeviceMetaHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
