@@ -9,6 +9,8 @@
 module Device.DataSource
   ( DeviceReq(..)
   , initDeviceState
+
+  , devices
   ) where
 
 
@@ -21,11 +23,13 @@ import           Data.List                (groupBy)
 import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
 import           Database.PSQL.Types      (HasPSQL, PSQL, PSQLPool, Page,
-                                           TablePrefix, psqlPool, runPSQLPool)
+                                           TableName, TablePrefix, psqlPool,
+                                           runPSQLPool)
 import           Device.DataSource.Device
 import           Device.DataSource.Index
 import           Device.DataSource.Metric
 import           Device.DataSource.Table
+import           Device.DataSource.Util
 import           Device.Types
 import           Haxl.Core                hiding (env, fetchReq)
 
@@ -35,17 +39,8 @@ data DeviceReq a where
   CreateTable :: DeviceReq Int64
   CreateDevice :: KeyID -> Token -> Addr -> DeviceReq DeviceID
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
-  GetDevIdByCol :: String -> Text -> DeviceReq (Maybe DeviceID)
-  GetDevIdList :: Page -> DeviceReq [DeviceID]
-  CountDevice :: DeviceReq Int64
-  GetDevIdListByKey :: KeyID -> Page -> DeviceReq [DeviceID]
-  CountDeviceByKey :: KeyID -> DeviceReq Int64
-  UpdateDevice :: DeviceID -> String -> Text -> DeviceReq Int64
-  RemoveDevice :: DeviceID -> DeviceReq Int64
   GetDevKeyID :: Key -> DeviceReq KeyID
   GetDevKeyByID :: KeyID -> DeviceReq Key
-  GetDevIdListByGw :: DeviceID -> Page -> DeviceReq [DeviceID]
-  CountDevAddrByGw :: DeviceID -> DeviceReq Int64
 
   SaveMetric :: DeviceID -> String -> String -> Float -> CreatedAt -> DeviceReq Int64
   GetMetric :: MetricID -> DeviceReq (Maybe Metric)
@@ -64,6 +59,15 @@ data DeviceReq a where
   GetIndexDevIdList :: [IndexNameId] -> Page -> DeviceReq [DeviceID]
   CountIndex :: [IndexNameId] -> Maybe DeviceID -> DeviceReq Int64
 
+  UpdateById :: TableName -> Int64 -> String -> Text -> DeviceReq Int64
+  RemoveById :: TableName -> Int64 -> DeviceReq Int64
+  GetIdByCol :: TableName -> String -> Text -> DeviceReq (Maybe Int64)
+  GetIdListInCol :: TableName -> String -> [Text] -> DeviceReq [(Text, Int64)]
+  GetIdListByCol :: TableName -> String -> Text -> Page -> DeviceReq [Int64]
+  CountByCol :: TableName -> String -> Text -> DeviceReq Int64
+  GetIdList :: TableName -> Page -> DeviceReq [Int64]
+  CountAll :: TableName -> DeviceReq Int64
+
   deriving (Typeable)
 
 deriving instance Eq (DeviceReq a)
@@ -71,17 +75,8 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s CreateTable                 = hashWithSalt s (1::Int)
   hashWithSalt s (CreateDevice k t a)        = hashWithSalt s (2::Int, k, t, a)
   hashWithSalt s (GetDevice i)               = hashWithSalt s (3::Int, i)
-  hashWithSalt s (GetDevIdByCol c v)         = hashWithSalt s (4::Int, c, v)
-  hashWithSalt s (GetDevIdList p)            = hashWithSalt s (6::Int, p)
-  hashWithSalt s CountDevice                 = hashWithSalt s (7::Int)
-  hashWithSalt s (GetDevIdListByKey k p)     = hashWithSalt s (8::Int, k, p)
-  hashWithSalt s (CountDeviceByKey k)        = hashWithSalt s (9::Int, k)
-  hashWithSalt s (UpdateDevice i f t)        = hashWithSalt s (10::Int, i, f, t)
-  hashWithSalt s (RemoveDevice i)            = hashWithSalt s (11::Int, i)
   hashWithSalt s (GetDevKeyID k)             = hashWithSalt s (12::Int, k)
   hashWithSalt s (GetDevKeyByID k)           = hashWithSalt s (13::Int, k)
-  hashWithSalt s (GetDevIdListByGw g p)      = hashWithSalt s (17::Int, g, p)
-  hashWithSalt s (CountDevAddrByGw g)        = hashWithSalt s (18::Int, g)
 
   hashWithSalt s (SaveMetric a b c d e)      = hashWithSalt s (19::Int, a, b, c, d, e)
   hashWithSalt s (GetMetric a)               = hashWithSalt s (21::Int, a)
@@ -100,6 +95,16 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (GetIndexDevIdList a b)     = hashWithSalt s (32::Int, a, b)
   hashWithSalt s (CountIndex a b)            = hashWithSalt s (33::Int, a, b)
 
+
+  hashWithSalt s (UpdateById a b c d)        = hashWithSalt s (34::Int, a, b, c, d)
+  hashWithSalt s (RemoveById a b)            = hashWithSalt s (35::Int, a, b)
+  hashWithSalt s (GetIdByCol a b c)          = hashWithSalt s (36::Int, a, b, c)
+  hashWithSalt s (GetIdListInCol a b c)      = hashWithSalt s (37::Int, a, b, c)
+  hashWithSalt s (GetIdListByCol a b c d)    = hashWithSalt s (38::Int, a, b, c, d)
+  hashWithSalt s (CountByCol a b c)          = hashWithSalt s (39::Int, a, b, c)
+  hashWithSalt s (GetIdList a b)             = hashWithSalt s (40::Int, a, b)
+  hashWithSalt s (CountAll a)                = hashWithSalt s (41::Int64, a)
+
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
 
@@ -115,9 +120,9 @@ instance HasPSQL u => DataSource u DeviceReq where
 isSameType :: BlockedFetch DeviceReq -> BlockedFetch DeviceReq -> Bool
 isSameType (BlockedFetch (GetDevice _) _) (BlockedFetch (GetDevice _) _) = True
 isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
-isSameType (BlockedFetch (GetDevIdByCol c0 _) _) (BlockedFetch (GetDevIdByCol c1 _) _) = c0 == c1
 isSameType (BlockedFetch (GetMetric _) _) (BlockedFetch (GetMetric _) _) = True
 isSameType (BlockedFetch (GetLastMetricIdList _) _) (BlockedFetch (GetLastMetricIdList _) _) = True
+isSameType (BlockedFetch (GetIdByCol t0 c0 _) _) (BlockedFetch (GetIdByCol t1 c1 _) _) = c0 == c1 && t0 == t1
 isSameType _ _ = False
 
 doFetch
@@ -180,21 +185,6 @@ fetchSync reqs@((BlockedFetch (GetDevKeyByID _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
-fetchSync reqs@((BlockedFetch (GetDevIdByCol col _) _):_) prefix pool = do
-  e <- CE.try $ runPSQLPool prefix pool (getDevIdListByCol col vals)
-  case e of
-    Left ex -> mapM_ (putFail ex) reqs
-    Right a ->  mapM_ (putReq a) reqs
-
-  where vals = [v | BlockedFetch (GetDevIdByCol _ v) _ <- reqs]
-        putReq :: [(Text, DeviceID)] -> BlockedFetch DeviceReq ->  IO ()
-        putReq [] (BlockedFetch (GetDevIdByCol _ _) rvar) = putSuccess rvar Nothing
-        putReq (x:xs) req@(BlockedFetch (GetDevIdByCol _ c) rvar)
-          | c == fst x = putSuccess rvar (Just (snd x))
-          | otherwise = putReq xs req
-
-        putReq _ _ = return ()
-
 fetchSync reqs@((BlockedFetch (GetMetric _) _):_) prefix pool = do
   e <- CE.try $ runPSQLPool prefix pool (getMetricList ids)
   case e of
@@ -233,23 +223,29 @@ fetchSync reqs@((BlockedFetch (GetLastMetricIdList _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
+fetchSync reqs@((BlockedFetch (GetIdByCol tb col _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getIdListInCol tb col vals)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where vals = [v | BlockedFetch (GetIdByCol _ _ v) _ <- reqs]
+        putReq :: [(Text, Int64)] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetIdByCol _ _ _) rvar) = putSuccess rvar Nothing
+        putReq (x:xs) req@(BlockedFetch (GetIdByCol _ _ c) rvar)
+          | c == fst x = putSuccess rvar (Just (snd x))
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
 fetchSync reqs prefix pool = mapM_ (\x -> fetchSync [x] prefix pool) reqs
 
 fetchReq :: DeviceReq a -> PSQL a
 fetchReq CreateTable                 = createTable
 fetchReq (CreateDevice k t a)        = createDevice k t a
 fetchReq (GetDevice i)               = getDevice i
-fetchReq (GetDevIdByCol c v)         = getDevIdByCol c v
-fetchReq (GetDevIdList p)            = getDevIdList p
-fetchReq CountDevice                 = countDevice
-fetchReq (GetDevIdListByKey k p)     = getDevIdListByKey k p
-fetchReq (CountDeviceByKey k)        = countDeviceByKey k
-fetchReq (UpdateDevice i f t)        = updateDevice i f t
-fetchReq (RemoveDevice i)            = removeDevice i
 fetchReq (GetDevKeyID k)             = getDevKeyId k
 fetchReq (GetDevKeyByID k)           = getDevKeyById k
-fetchReq (GetDevIdListByGw g p)      = getDevIdListByGw g p
-fetchReq (CountDevAddrByGw g)        = countDevAddrByGw g
 
 fetchReq (SaveMetric a b c d e)      = saveMetric a b c d e
 fetchReq (GetMetric a)               = getMetric a
@@ -267,6 +263,15 @@ fetchReq (SaveIndex a b)             = saveIndex a b
 fetchReq (RemoveIndex a b)           = removeIndex a b
 fetchReq (GetIndexDevIdList a b)     = getIndexDevIdList a b
 fetchReq (CountIndex a b)            = countIndex a b
+
+fetchReq (UpdateById a b c d)        = updateById a b c d
+fetchReq (RemoveById a b)            = removeById a b
+fetchReq (GetIdByCol a b c)          = getIdByCol a b c
+fetchReq (GetIdListInCol a b c)      = getIdListInCol a b c
+fetchReq (GetIdListByCol a b c d)    = getIdListByCol a b c d
+fetchReq (CountByCol a b c)          = countByCol a b c
+fetchReq (GetIdList a b)             = getIdList a b
+fetchReq (CountAll a)                = countAll a
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq
 initDeviceState = DeviceState

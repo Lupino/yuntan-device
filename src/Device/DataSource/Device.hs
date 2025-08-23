@@ -4,35 +4,20 @@ module Device.DataSource.Device
   ( createDevice
   , getDevice
   , getDeviceList
-  , getDevIdList
-  , getDevIdListByKey
-  , countDevice
-  , countDeviceByKey
-  , updateDevice
-  , removeDevice
 
   , getDevKeyId
   , getDevKeyById
   , getDevKeyList
 
-  , getDevIdByCol
-  , getDevIdListByCol
-
-  , getDevIdListByGw
-  , countDevAddrByGw
+  , devices
   ) where
 
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Int               (Int64)
 import           Data.Maybe             (fromMaybe)
-import           Data.String            (fromString)
-import           Data.Text              (Text)
 import           Data.UUID              (toText)
 import           Data.UUID.V4           (nextRandom)
-import           Database.PSQL.Types    (Only (..), PSQL, Page (..), TableName,
-                                         count, count_, delete, insertRet,
-                                         selectIn, selectOne, selectOneOnly,
-                                         selectOnly, selectOnly_, update)
+import           Database.PSQL.Types    (Only (..), PSQL, TableName, insertRet,
+                                         selectIn, selectOne, selectOneOnly)
 import           Device.Types
 import           Device.Util            (getEpochTime)
 
@@ -83,37 +68,3 @@ getDevice devid = selectOne devices ["*"] "id = ?" (Only devid)
 
 getDeviceList :: [DeviceID] -> PSQL [Device]
 getDeviceList = selectIn devices ["*"] "id"
-
-getDevIdList :: Page -> PSQL [DeviceID]
-getDevIdList = selectOnly_ devices "id"
-
-countDevice :: PSQL Int64
-countDevice = count_ devices
-
-getDevIdListByKey :: KeyID -> Page -> PSQL [DeviceID]
-getDevIdListByKey kid =
-  selectOnly devices "id" "key_id = ?" (Only kid)
-
-countDeviceByKey :: KeyID -> PSQL Int64
-countDeviceByKey kid = count devices "key_id = ?" (Only kid)
-
-updateDevice :: DeviceID -> String -> Text -> PSQL Int64
-updateDevice devid field value =
-  update devices [fromString field] "id = ?" (value, devid)
-
-removeDevice :: DeviceID -> PSQL Int64
-removeDevice devid = delete devices "id = ?" (Only devid)
-
-getDevIdByCol :: String -> Text -> PSQL (Maybe DeviceID)
-getDevIdByCol field value = selectOneOnly devices "id"  (field ++ " = ?") (Only value)
-
-getDevIdListByCol :: String -> [Text] -> PSQL [(Text, DeviceID)]
-getDevIdListByCol col' = selectIn devices [col, "id"] col
-  where col = fromString col'
-
-getDevIdListByGw :: DeviceID -> Page -> PSQL [DeviceID]
-getDevIdListByGw gwid =
-  selectOnly devices "id" "gw_id = ?" (Only gwid)
-
-countDevAddrByGw :: DeviceID -> PSQL Int64
-countDevAddrByGw gwid = count devices "gw_id = ?" (Only gwid)

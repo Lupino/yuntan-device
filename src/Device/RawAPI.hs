@@ -32,11 +32,20 @@ module Device.RawAPI
   , removeIndex
   , getIndexDevIdList
   , countIndex
+
+  , updateById
+  , removeById
+  , getIdByCol
+  , getIdListByCol
+  , countByCol
+
+  , devices
   ) where
 
 import           Data.Int            (Int64)
+import           Data.String         (fromString)
 import           Data.Text           (Text)
-import           Database.PSQL.Types (HasPSQL, Page)
+import           Database.PSQL.Types (HasPSQL, Page, TableName)
 import           Device.DataSource
 import           Device.Types
 import           Haxl.Core           (GenHaxl, dataFetch, uncachedRequest)
@@ -51,25 +60,29 @@ getDevice :: HasPSQL u => DeviceID -> GenHaxl u w (Maybe Device)
 getDevice devid = dataFetch (GetDevice devid)
 
 getDevIdByCol :: HasPSQL u => String -> Text -> GenHaxl u w (Maybe DeviceID)
-getDevIdByCol col val = dataFetch (GetDevIdByCol col val)
+getDevIdByCol col val =
+  maybe Nothing (Just . DeviceID) <$> getIdByCol devices col val
 
 getDevIdList :: HasPSQL u => Page -> GenHaxl u w [DeviceID]
-getDevIdList p = dataFetch (GetDevIdList p)
+getDevIdList p = map DeviceID <$> getIdList devices p
 
 countDevice :: HasPSQL u => GenHaxl u w Int64
-countDevice = dataFetch CountDevice
+countDevice = countAll devices
 
 getDevIdListByKey :: HasPSQL u => KeyID -> Page -> GenHaxl u w [DeviceID]
-getDevIdListByKey kid p = dataFetch (GetDevIdListByKey kid p)
+getDevIdListByKey (KeyID kid) p =
+  map DeviceID <$> getIdListByCol devices "key_id" k p
+  where k = fromString (show kid)
 
 countDeviceByKey :: HasPSQL u => KeyID -> GenHaxl u w Int64
-countDeviceByKey kid = dataFetch (CountDeviceByKey kid)
+countDeviceByKey (KeyID kid) = countByCol devices "key_id" k
+  where k = fromString (show kid)
 
 updateDevice :: HasPSQL u => DeviceID -> String -> Text -> GenHaxl u w Int64
-updateDevice devid f t = uncachedRequest (UpdateDevice devid f t)
+updateDevice (DeviceID did) f t = updateById devices did f t
 
 removeDevice :: HasPSQL u => DeviceID -> GenHaxl u w Int64
-removeDevice devid = uncachedRequest (RemoveDevice devid)
+removeDevice (DeviceID did) = removeById devices did
 
 getDevKeyId :: HasPSQL u => Key -> GenHaxl u w KeyID
 getDevKeyId key = dataFetch (GetDevKeyID key)
@@ -78,10 +91,13 @@ getDevKeyById :: HasPSQL u => KeyID -> GenHaxl u w Key
 getDevKeyById kid = dataFetch (GetDevKeyByID kid)
 
 getDevIdListByGw :: HasPSQL u => DeviceID -> Page -> GenHaxl u w [DeviceID]
-getDevIdListByGw gwid p = dataFetch (GetDevIdListByGw gwid p)
+getDevIdListByGw (DeviceID gwid) p =
+  map DeviceID <$> getIdListByCol devices "gw_id" k p
+  where k = fromString (show gwid)
 
 countDevAddrByGw :: HasPSQL u => DeviceID -> GenHaxl u w Int64
-countDevAddrByGw gwid = dataFetch (CountDevAddrByGw gwid)
+countDevAddrByGw (DeviceID gwid) = countByCol devices "gw_id" k
+  where k = fromString (show gwid)
 
 saveMetric :: HasPSQL u => DeviceID -> String -> String -> Float -> CreatedAt -> GenHaxl u w Int64
 saveMetric a b c d e = uncachedRequest (SaveMetric a b c d e)
@@ -124,3 +140,29 @@ getIndexDevIdList a b = dataFetch (GetIndexDevIdList a b)
 
 countIndex :: HasPSQL u => [IndexNameId] -> Maybe DeviceID -> GenHaxl u w Int64
 countIndex a b = dataFetch (CountIndex a b)
+
+---------------------------- Util ----------------------------------
+
+updateById :: HasPSQL u => TableName -> Int64 -> String -> Text -> GenHaxl u w Int64
+updateById a b c d = uncachedRequest (UpdateById a b c d)
+
+removeById :: HasPSQL u => TableName -> Int64 -> GenHaxl u w Int64
+removeById a b = uncachedRequest (RemoveById a b)
+
+getIdByCol :: HasPSQL u => TableName -> String -> Text -> GenHaxl u w (Maybe Int64)
+getIdByCol a b c = dataFetch (GetIdByCol a b c)
+
+getIdListInCol :: HasPSQL u => TableName -> String -> [Text] -> GenHaxl u w [(Text, Int64)]
+getIdListInCol a b c = dataFetch (GetIdListInCol a b c)
+
+getIdListByCol :: HasPSQL u => TableName -> String -> Text -> Page -> GenHaxl u w [Int64]
+getIdListByCol a b c d = dataFetch (GetIdListByCol a b c d)
+
+countByCol :: HasPSQL u => TableName -> String -> Text -> GenHaxl u w Int64
+countByCol a b c = dataFetch (CountByCol a b c)
+
+getIdList :: HasPSQL u => TableName -> Page -> GenHaxl u w [Int64]
+getIdList a b = dataFetch (GetIdList a b)
+
+countAll :: HasPSQL u => TableName -> GenHaxl u w Int64
+countAll a    = dataFetch (CountAll a)
