@@ -18,6 +18,9 @@ module Device.Types
   , IndexNameId (..)
   , IndexName (..)
 
+  , Card (..)
+  , CardID (..)
+
   , EmqxUser (..)
   , EmqxMountPoint (..)
   ) where
@@ -290,6 +293,47 @@ instance FromJSON MetricID where
 instance ToJSON MetricID where
   toJSON (MetricID k) = toJSON k
 
+newtype CardID = CardID {unCardID :: Int64}
+  deriving (Show, Eq, Ord)
+
+instance Hashable CardID where
+  hashWithSalt s (CardID v) = hashWithSalt s v
+
+instance ToField CardID where
+  toField (CardID k) = toField k
+
+instance FromField CardID where
+  fromField f mv = CardID <$> fromField f mv
+
+instance Num CardID where
+  CardID c1 + CardID c2 = CardID (c1 + c2)
+  {-# INLINABLE (+) #-}
+
+  CardID c1 - CardID c2 = CardID (c1 - c2)
+  {-# INLINABLE (-) #-}
+
+  CardID c1 * CardID c2 = CardID (c1 * c2)
+  {-# INLINABLE (*) #-}
+
+  abs (CardID c) = CardID (abs c)
+  {-# INLINABLE abs #-}
+
+  negate (CardID c) = CardID (negate c)
+  {-# INLINABLE negate #-}
+
+  signum (CardID c) = CardID (signum c)
+  {-# INLINABLE signum #-}
+
+  fromInteger = CardID . fromInteger
+  {-# INLINABLE fromInteger #-}
+
+instance FromJSON CardID where
+  parseJSON = withScientific "CardID" $ \t ->
+    pure $ CardID $ fromMaybe 0 $ toBoundedInteger t
+
+instance ToJSON CardID where
+  toJSON (CardID k) = toJSON k
+
 type Meta      = Value
 
 data Device = Device
@@ -484,3 +528,40 @@ instance ToJSON EmqxUser where
   toJSON EmqxSuperAdmin               = object ["type" .= ("superadmin" :: String)]
   toJSON (EmqxAdmin (EmqxMountPoint mp))  = object ["type" .= ("admin" :: String), "mountpoint" .= mp]
   toJSON (EmqxNormal (EmqxMountPoint mp)) = object ["type" .= ("normal" :: String), "mountpoint" .= mp]
+
+
+data Card = Card
+  { cardID        :: CardID
+  , cardDevId     :: DeviceID
+  , cardField     :: String
+  , cardMeta      :: Value
+  , cardCreatedAt :: CreatedAt
+  }
+  deriving (Show)
+
+instance FromRow Card where
+  fromRow = do
+    cardID <- field
+    cardDevId <- field
+    cardField <- field
+    cardMeta <- fromMaybe Null <$> field
+    cardCreatedAt <- field
+    return Card { .. }
+
+instance ToJSON Card where
+  toJSON Card {..} = object
+    [ "id"         .= cardID
+    , "dev_id"     .= cardDevId
+    , "field"      .= cardField
+    , "meta"       .= cardMeta
+    , "created_at" .= cardCreatedAt
+    ]
+
+instance FromJSON Card where
+  parseJSON = withObject "Card" $ \o -> do
+    cardID        <- o .: "id"
+    cardDevId     <- o .: "dev_id"
+    cardField     <- o .: "field"
+    cardMeta      <- o .: "meta"
+    cardCreatedAt <- o .: "created_at"
+    return Card{..}

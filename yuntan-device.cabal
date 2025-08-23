@@ -27,6 +27,7 @@ library
                      , Device.DataSource.Table
                      , Device.DataSource.Index
                      , Device.DataSource.Util
+                     , Device.DataSource.Card
 
                      , Device.MQTT
 

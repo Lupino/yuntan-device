@@ -141,6 +141,12 @@ getIndexDevIdList a b = dataFetch (GetIndexDevIdList a b)
 countIndex :: HasPSQL u => [IndexNameId] -> Maybe DeviceID -> GenHaxl u w Int64
 countIndex a b = dataFetch (CountIndex a b)
 
+createCard :: HasPSQL u => DeviceID -> String -> GenHaxl u w CardID
+createCard a b = uncachedRequest (CreateCard a b)
+
+getCard :: HasPSQL u => CardID -> GenHaxl u w (Maybe Card)
+getCard a = dataFetch (GetCard a)
+
 ---------------------------- Util ----------------------------------
 
 updateById :: HasPSQL u => TableName -> Int64 -> String -> Text -> GenHaxl u w Int64

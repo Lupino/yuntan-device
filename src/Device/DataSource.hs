@@ -11,6 +11,7 @@ module Device.DataSource
   , initDeviceState
 
   , devices
+  , cards
   ) where
 
 
@@ -25,6 +26,7 @@ import           Data.Typeable            (Typeable)
 import           Database.PSQL.Types      (HasPSQL, PSQL, PSQLPool, Page,
                                            TableName, TablePrefix, psqlPool,
                                            runPSQLPool)
+import           Device.DataSource.Card
 import           Device.DataSource.Device
 import           Device.DataSource.Index
 import           Device.DataSource.Metric
@@ -68,6 +70,9 @@ data DeviceReq a where
   GetIdList :: TableName -> Page -> DeviceReq [Int64]
   CountAll :: TableName -> DeviceReq Int64
 
+  CreateCard :: DeviceID -> String -> DeviceReq CardID
+  GetCard :: CardID -> DeviceReq (Maybe Card)
+
   deriving (Typeable)
 
 deriving instance Eq (DeviceReq a)
@@ -75,35 +80,37 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s CreateTable                 = hashWithSalt s (1::Int)
   hashWithSalt s (CreateDevice k t a)        = hashWithSalt s (2::Int, k, t, a)
   hashWithSalt s (GetDevice i)               = hashWithSalt s (3::Int, i)
-  hashWithSalt s (GetDevKeyID k)             = hashWithSalt s (12::Int, k)
-  hashWithSalt s (GetDevKeyByID k)           = hashWithSalt s (13::Int, k)
+  hashWithSalt s (GetDevKeyID k)             = hashWithSalt s (4::Int, k)
+  hashWithSalt s (GetDevKeyByID k)           = hashWithSalt s (5::Int, k)
 
-  hashWithSalt s (SaveMetric a b c d e)      = hashWithSalt s (19::Int, a, b, c, d, e)
-  hashWithSalt s (GetMetric a)               = hashWithSalt s (21::Int, a)
-  hashWithSalt s (GetMetricIdList a b c d p) = hashWithSalt s (22::Int, a, b, c, d, p)
-  hashWithSalt s (CountMetric a b c d)       = hashWithSalt s (23::Int, a, b, c, d)
-  hashWithSalt s (RemoveMetric a)            = hashWithSalt s (24::Int, a)
-  hashWithSalt s (DropMetric a f)            = hashWithSalt s (25::Int, a, f)
-  hashWithSalt s (GetLastMetricIdList a)     = hashWithSalt s (26::Int, a)
+  hashWithSalt s (SaveMetric a b c d e)      = hashWithSalt s (6::Int, a, b, c, d, e)
+  hashWithSalt s (GetMetric a)               = hashWithSalt s (7::Int, a)
+  hashWithSalt s (GetMetricIdList a b c d p) = hashWithSalt s (8::Int, a, b, c, d, p)
+  hashWithSalt s (CountMetric a b c d)       = hashWithSalt s (9::Int, a, b, c, d)
+  hashWithSalt s (RemoveMetric a)            = hashWithSalt s (10::Int, a)
+  hashWithSalt s (DropMetric a f)            = hashWithSalt s (11::Int, a, f)
+  hashWithSalt s (GetLastMetricIdList a)     = hashWithSalt s (12::Int, a)
 
-  hashWithSalt s (GetIndexNameId a)          = hashWithSalt s (27::Int, a)
-  hashWithSalt s (GetIndexNameId_ a)         = hashWithSalt s (28::Int, a)
-  hashWithSalt s (RemoveIndexName a)         = hashWithSalt s (29::Int, a)
+  hashWithSalt s (GetIndexNameId a)          = hashWithSalt s (13::Int, a)
+  hashWithSalt s (GetIndexNameId_ a)         = hashWithSalt s (14::Int, a)
+  hashWithSalt s (RemoveIndexName a)         = hashWithSalt s (15::Int, a)
 
-  hashWithSalt s (SaveIndex a b)             = hashWithSalt s (30::Int, a, b)
-  hashWithSalt s (RemoveIndex a b)           = hashWithSalt s (31::Int, a, b)
-  hashWithSalt s (GetIndexDevIdList a b)     = hashWithSalt s (32::Int, a, b)
-  hashWithSalt s (CountIndex a b)            = hashWithSalt s (33::Int, a, b)
+  hashWithSalt s (SaveIndex a b)             = hashWithSalt s (16::Int, a, b)
+  hashWithSalt s (RemoveIndex a b)           = hashWithSalt s (17::Int, a, b)
+  hashWithSalt s (GetIndexDevIdList a b)     = hashWithSalt s (18::Int, a, b)
+  hashWithSalt s (CountIndex a b)            = hashWithSalt s (19::Int, a, b)
 
+  hashWithSalt s (UpdateById a b c d)        = hashWithSalt s (20::Int, a, b, c, d)
+  hashWithSalt s (RemoveById a b)            = hashWithSalt s (21::Int, a, b)
+  hashWithSalt s (GetIdByCol a b c)          = hashWithSalt s (22::Int, a, b, c)
+  hashWithSalt s (GetIdListInCol a b c)      = hashWithSalt s (23::Int, a, b, c)
+  hashWithSalt s (GetIdListByCol a b c d)    = hashWithSalt s (24::Int, a, b, c, d)
+  hashWithSalt s (CountByCol a b c)          = hashWithSalt s (25::Int, a, b, c)
+  hashWithSalt s (GetIdList a b)             = hashWithSalt s (26::Int, a, b)
+  hashWithSalt s (CountAll a)                = hashWithSalt s (27::Int64, a)
 
-  hashWithSalt s (UpdateById a b c d)        = hashWithSalt s (34::Int, a, b, c, d)
-  hashWithSalt s (RemoveById a b)            = hashWithSalt s (35::Int, a, b)
-  hashWithSalt s (GetIdByCol a b c)          = hashWithSalt s (36::Int, a, b, c)
-  hashWithSalt s (GetIdListInCol a b c)      = hashWithSalt s (37::Int, a, b, c)
-  hashWithSalt s (GetIdListByCol a b c d)    = hashWithSalt s (38::Int, a, b, c, d)
-  hashWithSalt s (CountByCol a b c)          = hashWithSalt s (39::Int, a, b, c)
-  hashWithSalt s (GetIdList a b)             = hashWithSalt s (40::Int, a, b)
-  hashWithSalt s (CountAll a)                = hashWithSalt s (41::Int64, a)
+  hashWithSalt s (CreateCard a b)            = hashWithSalt s (28::Int64, a, b)
+  hashWithSalt s (GetCard a)                 = hashWithSalt s (29::Int64, a)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -119,6 +126,7 @@ instance HasPSQL u => DataSource u DeviceReq where
 
 isSameType :: BlockedFetch DeviceReq -> BlockedFetch DeviceReq -> Bool
 isSameType (BlockedFetch (GetDevice _) _) (BlockedFetch (GetDevice _) _) = True
+isSameType (BlockedFetch (GetCard _) _) (BlockedFetch (GetCard _) _) = True
 isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
 isSameType (BlockedFetch (GetMetric _) _) (BlockedFetch (GetMetric _) _) = True
 isSameType (BlockedFetch (GetLastMetricIdList _) _) (BlockedFetch (GetLastMetricIdList _) _) = True
@@ -238,6 +246,21 @@ fetchSync reqs@((BlockedFetch (GetIdByCol tb col _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
+fetchSync reqs@((BlockedFetch (GetCard _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getCardList ids)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where ids = [i | BlockedFetch (GetCard i) _ <- reqs]
+        putReq :: [Card] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetCard _) rvar) = putSuccess rvar Nothing
+        putReq (x:xs) req@(BlockedFetch (GetCard i) rvar)
+          | i == cardID x = putSuccess rvar (Just x)
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
 fetchSync reqs prefix pool = mapM_ (\x -> fetchSync [x] prefix pool) reqs
 
 fetchReq :: DeviceReq a -> PSQL a
@@ -272,6 +295,9 @@ fetchReq (GetIdListByCol a b c d)    = getIdListByCol a b c d
 fetchReq (CountByCol a b c)          = countByCol a b c
 fetchReq (GetIdList a b)             = getIdList a b
 fetchReq (CountAll a)                = countAll a
+
+fetchReq (CreateCard a b)            = createCard a b
+fetchReq (GetCard a)                 = getCard a
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq
 initDeviceState = DeviceState

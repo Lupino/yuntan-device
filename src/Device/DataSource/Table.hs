@@ -61,6 +61,17 @@ createIndexTable =
     ]
 
 
+createCardTable :: PSQL Int64
+createCardTable =
+  PSQL.createTable "cards"
+    [ "id SERIAL PRIMARY KEY"
+    , "dev_id INT NOT NULL"
+    , "field VARCHAR(128) NOT NULL"
+    , "meta JSON NOT NULL"
+    , "created_at INT NOT NULL"
+    ]
+
+
 createTable :: PSQL Int64
 createTable =
   sum <$> sequence
@@ -79,4 +90,7 @@ createTable =
     , createIndex True "index_names" "index_name_uniq_key" ["name"]
     , createIndexTable
     , createIndex True "indexs" "index_uniq_key" ["name_id", "dev_id"]
+
+    , createCardTable
+    , createIndex True "cards" "card_uniq_key" ["dev_id", "field"]
     ]
