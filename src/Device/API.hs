@@ -41,7 +41,7 @@ import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import           Database.PSQL.Types    (Column, HasOtherEnv, HasPSQL)
+import           Database.PSQL          (Column, HasOtherEnv, HasPSQL)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               countDeviceByKey, countIndex,

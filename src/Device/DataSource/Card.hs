@@ -8,8 +8,7 @@ module Device.DataSource.Card
   ) where
 
 
-import           Database.PSQL.Types (Only (..), PSQL, TableName, selectIn,
-                                      selectOne)
+import           Database.PSQL (Only (..), PSQL, TableName, selectIn, selectOne)
 import           Device.Types
 
 cards :: TableName

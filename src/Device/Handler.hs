@@ -41,7 +41,7 @@ import qualified Data.Text              as T (length, null, pack, splitOn,
                                               unpack)
 import           Data.UUID              (toText)
 import           Data.UUID.V4           (nextRandom)
-import           Database.PSQL.Types    (Column (..), From (..), HasOtherEnv,
+import           Database.PSQL          (Column (..), From (..), HasOtherEnv,
                                          HasPSQL, Page (..), Size (..), asc,
                                          desc)
 import           Device
@@ -154,7 +154,7 @@ getDeviceListHandler allowKeys = do
       resultDeviceList (getDevIdListByKey kid) (countDeviceByKey kid)
     else
       errBadRequest "key is not exists"
-  else if length indexNames > 0 then do
+  else if not (null indexNames) then do
     nids <- lift $ catMaybes <$> mapM getIndexNameId_ indexNames
     if null nids then
       errBadRequest "index_name is invalid"

@@ -29,7 +29,7 @@ import           Data.Int                 (Int64)
 import           Data.List                (groupBy)
 import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
-import           Database.PSQL.Types      (Action, Columns, HasPSQL, PSQL,
+import           Database.PSQL            (Action, Columns, HasPSQL, PSQL,
                                            PSQLPool, Page, TableName,
                                            TablePrefix, psqlPool, runPSQLPool)
 import           Device.DataSource.Card
@@ -223,7 +223,7 @@ fetchSync reqs@((BlockedFetch (GetIdByCol tb col _) _):_) prefix pool = do
 
   where vals = [v | BlockedFetch (GetIdByCol _ _ v) _ <- reqs]
         putReq :: [(Text, Int64)] -> BlockedFetch DeviceReq ->  IO ()
-        putReq [] (BlockedFetch (GetIdByCol _ _ _) rvar) = putSuccess rvar Nothing
+        putReq [] (BlockedFetch (GetIdByCol {}) rvar) = putSuccess rvar Nothing
         putReq (x:xs) req@(BlockedFetch (GetIdByCol _ _ c) rvar)
           | c == fst x = putSuccess rvar (Just (snd x))
           | otherwise = putReq xs req

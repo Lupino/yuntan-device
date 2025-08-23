@@ -25,18 +25,18 @@ module Device.Types
   , EmqxMountPoint (..)
   ) where
 
-import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
-                                      object, withObject, withScientific,
-                                      withText, (.:), (.:?), (.=))
-import           Data.Hashable       (Hashable (..))
-import           Data.Int            (Int64)
-import           Data.Maybe          (fromMaybe)
-import           Data.Scientific     (toBoundedInteger)
-import           Data.String         (IsString (..))
-import           Data.Text           (Text)
-import           Database.PSQL.Types (FromField (..), FromRow (..),
-                                      ToField (..), field)
-import           Text.Read           (readMaybe)
+import           Data.Aeson      (FromJSON (..), ToJSON (..), Value (..),
+                                  object, withObject, withScientific, withText,
+                                  (.:), (.:?), (.=))
+import           Data.Hashable   (Hashable (..))
+import           Data.Int        (Int64)
+import           Data.Maybe      (fromMaybe)
+import           Data.Scientific (toBoundedInteger)
+import           Data.String     (IsString (..))
+import           Data.Text       (Text)
+import           Database.PSQL   (FromField (..), FromRow (..), ToField (..),
+                                  field)
+import           Text.Read       (readMaybe)
 
 
 newtype Key = Key {unKey :: Text}

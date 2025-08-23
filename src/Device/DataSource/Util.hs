@@ -16,15 +16,14 @@ module Device.DataSource.Util
   , countAll
   ) where
 
-import           Data.Int            (Int64)
-import           Data.String         (fromString)
-import           Data.Text           (Text)
-import           Database.PSQL.Types (Action, Columns, Only (..), PSQL,
-                                      Page (..), TableName, count, count_,
-                                      delete, insertRet, selectIn,
-                                      selectOneOnly, selectOnly, selectOnly_,
-                                      toRow, update)
-import           Device.Util         (getEpochTime)
+import           Data.Int      (Int64)
+import           Data.String   (fromString)
+import           Data.Text     (Text)
+import           Database.PSQL (Action, Columns, Only (..), PSQL, Page (..),
+                                TableName, count, count_, delete, insertRet,
+                                selectIn, selectOneOnly, selectOnly,
+                                selectOnly_, toRow, update)
+import           Device.Util   (getEpochTime)
 
 addOne_ :: TableName -> Columns -> [Action] -> PSQL Int64
 addOne_ tb cols vals = insertRet tb cols "id" vals 0
@@ -49,10 +48,10 @@ getIdListInCol tb col' = selectIn tb [col, "id"] col
   where col = fromString col'
 
 getIdListBy :: TableName -> String -> [Action] -> Page -> PSQL [Int64]
-getIdListBy tb sql vals = selectOnly tb "id" sql vals
+getIdListBy tb = selectOnly tb "id"
 
 countBy :: TableName -> String -> [Action] -> PSQL Int64
-countBy tb sql vals = count tb sql vals
+countBy = count
 
 getIdListAll :: TableName -> Page -> PSQL [Int64]
 getIdListAll tb = selectOnly_ tb "id"

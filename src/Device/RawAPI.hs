@@ -42,13 +42,13 @@ module Device.RawAPI
   , countBy
   ) where
 
-import           Data.Int            (Int64)
-import           Data.Text           (Text)
-import           Database.PSQL.Types (Column, Columns, HasPSQL, Only (..), Page,
-                                      TableName, ToRow (..))
+import           Data.Int          (Int64)
+import           Data.Text         (Text)
+import           Database.PSQL     (Column, Columns, HasPSQL, Only (..), Page,
+                                    TableName, ToRow (..))
 import           Device.DataSource
 import           Device.Types
-import           Haxl.Core           (GenHaxl, dataFetch, uncachedRequest)
+import           Haxl.Core         (GenHaxl, dataFetch, uncachedRequest)
 
 createTable :: HasPSQL u => GenHaxl u w Int64
 createTable = uncachedRequest CreateTable
@@ -69,7 +69,7 @@ getDevice devid = dataFetch (GetDevice devid)
 
 getDevIdByCol :: HasPSQL u => String -> Text -> GenHaxl u w (Maybe DeviceID)
 getDevIdByCol col val =
-  maybe Nothing (Just . DeviceID) <$> getIdByCol devices col val
+  fmap DeviceID <$> getIdByCol devices col val
 
 getDevIdList :: HasPSQL u => Page -> GenHaxl u w [DeviceID]
 getDevIdList p = map DeviceID <$> getIdListAll devices p
@@ -158,7 +158,7 @@ getIndexNameId name = do
 
 getIndexNameId_ :: HasPSQL u => IndexName -> GenHaxl u w (Maybe IndexNameId)
 getIndexNameId_ (IndexName n) =
-  maybe Nothing (Just . IndexNameId) <$> getIdByCol indexNames "name" n
+  fmap IndexNameId <$> getIdByCol indexNames "name" n
 
 removeIndexName :: HasPSQL u => IndexNameId -> GenHaxl u w Int64
 removeIndexName nid = removeBy indexNames "id = ?" (Only nid)

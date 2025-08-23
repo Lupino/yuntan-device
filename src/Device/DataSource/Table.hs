@@ -4,9 +4,9 @@ module Device.DataSource.Table
   ( createTable
   ) where
 
-import           Data.Int            (Int64)
-import           Database.PSQL.Types (PSQL, createIndex)
-import qualified Database.PSQL.Types as PSQL (createTable)
+import           Data.Int      (Int64)
+import           Database.PSQL (PSQL, createIndex)
+import qualified Database.PSQL as PSQL (createTable)
 
 createDeviceTable :: PSQL Int64
 createDeviceTable =

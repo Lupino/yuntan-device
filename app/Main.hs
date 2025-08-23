@@ -17,7 +17,7 @@ import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        settings)
 
 import           Data.String                          (fromString)
-import           Database.PSQL.Types                  (HasOtherEnv, HasPSQL,
+import           Database.PSQL                        (HasOtherEnv, HasPSQL,
                                                        SimpleEnv, simpleEnv)
 import           Haxl.RedisCache                      (initRedisState)
 import           Web.Scotty.Haxl                      (ScottyH)

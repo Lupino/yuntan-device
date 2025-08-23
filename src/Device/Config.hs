@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Device.Config
-  ( PSQL (..)
+  ( PSQLConfig (..)
   , Config (..)
   , genPSQLPool
   , genRedisConnection
@@ -15,17 +15,17 @@ module Device.Config
   , EmqxAdminConfig (..)
   ) where
 
-import           Data.Aeson           (FromJSON, parseJSON, withObject, (.!=),
-                                       (.:), (.:?))
-import           Data.ByteString      (ByteString)
-import           Data.String          (fromString)
-import           Database.PSQL.Config (PSQL (..), genPSQLPool)
-import           Database.PSQL.Types  (HasOtherEnv, otherEnv)
-import           Database.Redis       (Connection)
-import           Device.Types         (Key)
-import           Haxl.RedisConfig     (RedisConfig (..), defaultRedisConfig,
-                                       genRedisConnection)
-import           Network.URI          (URI, parseURI)
+import           Data.Aeson       (FromJSON, parseJSON, withObject, (.!=), (.:),
+                                   (.:?))
+import           Data.ByteString  (ByteString)
+import           Data.String      (fromString)
+import           Database.PSQL    (HasOtherEnv, PSQLConfig (..), genPSQLPool,
+                                   otherEnv)
+import           Database.Redis   (Connection)
+import           Device.Types     (Key)
+import           Haxl.RedisConfig (RedisConfig (..), defaultRedisConfig,
+                                   genRedisConnection)
+import           Network.URI      (URI, parseURI)
 
 data EmqxAdminConfig = EmqxAdminConfig
   { emqxAdminKey      :: String
@@ -54,7 +54,7 @@ instance FromJSON EmqxAuthConfig where
     return EmqxAuthConfig{ .. }
 
 data Config = Config
-  { psqlConfig  :: PSQL
+  { psqlConfig  :: PSQLConfig
   , mqttConfig  :: URI
   , redisConfig :: RedisConfig
   , allowKeys   :: [Key]

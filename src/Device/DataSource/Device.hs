@@ -11,14 +11,10 @@ module Device.DataSource.Device
   , deviceKeys
   ) where
 
-import           Control.Monad.IO.Class (liftIO)
-import           Data.Maybe             (fromMaybe)
-import           Data.UUID              (toText)
-import           Data.UUID.V4           (nextRandom)
-import           Database.PSQL.Types    (Only (..), PSQL, TableName, insertRet,
-                                         selectIn, selectOne, selectOneOnly)
+import           Data.Maybe    (fromMaybe)
+import           Database.PSQL (Only (..), PSQL, TableName, selectIn, selectOne,
+                                selectOneOnly)
 import           Device.Types
-import           Device.Util            (getEpochTime)
 
 devices :: TableName
 devices = "devices"

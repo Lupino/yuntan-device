@@ -21,7 +21,7 @@ import           Data.Maybe           (catMaybes)
 import           Data.Text            (Text)
 import           Data.Text.Encoding   (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy       as LT (drop, toStrict)
-import           Database.PSQL.Types  (HasPSQL)
+import           Database.PSQL        (HasPSQL)
 import           Device.API           (countIndex, getIndexNameId_)
 import           Device.Types         (Device (..), DeviceID, IndexName)
 import           Device.Util          (getEpochTime, parseIndexName)
@@ -95,7 +95,7 @@ getAuthInfo key = do
   case mBearerToken of
     Nothing          -> pure Nothing
     Just bearerToken ->
-      case (decodeJwt key (encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken)) of
+      case decodeJwt key (encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken) of
         Right (Just authInfo) -> pure $ Just authInfo
         _                     -> pure Nothing
 
@@ -123,7 +123,7 @@ requireAdmin True key next = do
   requireAuth key $ \authInfo ->
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) next
-    $ noPermessions
+    noPermessions
 
 
 requirePerm :: HasPSQL u => Bool -> ByteString -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
@@ -134,7 +134,7 @@ requirePerm True key next dev = do
     $ checkAdmin (authRole authInfo) (next dev)
     $ checkIndex (authIndexList authInfo) next dev
     $ checkDevId (authDevId authInfo) next dev
-    $ noPermessions
+    noPermessions
 
 checkAdmin :: Role -> ActionH u w () -> ActionH u w () -> ActionH u w ()
 checkAdmin RoleAdmin next _ = next
@@ -170,7 +170,7 @@ requireIndexName True key next = do
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) next
     $ doCheckIndexName (authIndexList authInfo) names next
-    $ noPermessions
+    noPermessions
 
 doCheckIndexName :: [IndexName] -> [IndexName] -> ActionH u w () -> ActionH u w () -> ActionH u w ()
 doCheckIndexName _ [] _ nextCheck = nextCheck

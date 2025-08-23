@@ -12,11 +12,10 @@ module Device.DataSource.Metric
   ) where
 
 
-import           Data.Int            (Int64)
-import           Database.PSQL.Types (Only (..), PSQL, Page (..), TableName,
-                                      count, delete, group, insertOrUpdate,
-                                      pageNone, selectAllRaw, selectIn,
-                                      selectInRaw, selectOne, selectOnly)
+import           Data.Int      (Int64)
+import           Database.PSQL (Only (..), PSQL, TableName, group,
+                                insertOrUpdate, pageNone, selectAllRaw,
+                                selectIn, selectInRaw, selectOne)
 import           Device.Types
 
 metrics :: TableName
