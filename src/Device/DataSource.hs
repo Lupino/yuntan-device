@@ -54,7 +54,6 @@ data DeviceReq a where
 
   SaveIndex :: IndexNameId -> DeviceID -> DeviceReq Int64
   GetIndexDevIdList :: [IndexNameId] -> Page -> DeviceReq [DeviceID]
-  CountIndex :: [IndexNameId] -> Maybe DeviceID -> DeviceReq Int64
 
   AddOne :: TableName -> Columns -> [Action] -> DeviceReq Int64
   AddOne_ :: TableName -> Columns -> [Action] -> DeviceReq Int64
@@ -82,7 +81,6 @@ instance Hashable (DeviceReq a) where
 
   hashWithSalt s (SaveIndex a b)         = hashWithSalt s (7::Int, a, b)
   hashWithSalt s (GetIndexDevIdList a b) = hashWithSalt s (8::Int, a, b)
-  hashWithSalt s (CountIndex a b)        = hashWithSalt s (9::Int, a, b)
 
   hashWithSalt s (AddOne a b c)          = hashWithSalt s (10::Int, a, b, c)
   hashWithSalt s (AddOne_ a b c)         = hashWithSalt s (11::Int, a, b, c)
@@ -258,7 +256,6 @@ fetchReq (GetLastMetricIdList a) = getLastMetricIdList a
 
 fetchReq (SaveIndex a b)         = saveIndex a b
 fetchReq (GetIndexDevIdList a b) = getIndexDevIdList a b
-fetchReq (CountIndex a b)        = countIndex a b
 
 fetchReq (AddOne a b c)          = addOne a b c
 fetchReq (AddOne_ a b c)         = addOne_ a b c

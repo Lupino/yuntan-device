@@ -44,8 +44,9 @@ module Device.RawAPI
 
 import           Data.Int          (Int64)
 import           Data.Text         (Text)
-import           Database.PSQL     (Column, Columns, HasPSQL, Only (..), Page,
-                                    TableName, ToRow (..))
+import           Database.PSQL     (Action, Column, Columns, HasPSQL, Only (..),
+                                    Page, TableName, ToRow (..), genAnd,
+                                    genBetweenBy, genBy, genEq, genIn, genMaybe)
 import           Device.DataSource
 import           Device.Types
 import           Haxl.Core         (GenHaxl, dataFetch, uncachedRequest)
@@ -113,35 +114,35 @@ saveMetric a b c d e = uncachedRequest (SaveMetric a b c d e)
 getMetric :: HasPSQL u => MetricID -> GenHaxl u w (Maybe Metric)
 getMetric a = dataFetch (GetMetric a)
 
-idListSql0 = "dev_id = ? AND created_at > ?"
-idListSql1 = "dev_id = ? AND field = ? AND created_at > ?"
-idListSql2 = "dev_id = ? AND created_at BETWEEN ? AND ?"
-idListSql3 = "dev_id = ? AND field = ? AND created_at BETWEEN ? AND ?"
+genGetMetricIdListQuery :: DeviceID -> String -> Int64 -> Int64 -> (String, [Action])
+genGetMetricIdListQuery did field startAt endAt = (q, a)
+  where (q0, a0) = genEq "dev_id" did
+        (q1, a1) = genBy (not . null) "field" field
+        (q2, a2) = genBetweenBy (> 0) "created_at" startAt endAt
+
+        q = q0 `genAnd` q1 `genAnd` q2
+        a = a0 ++ a1 ++ a2
+
 
 getMetricIdList :: HasPSQL u => DeviceID -> String -> Int64 -> Int64 -> Page -> GenHaxl u w [MetricID]
-getMetricIdList did ""    startAt 0 p =
-  map MetricID <$> getIdListBy metrics idListSql0 (did, startAt) p
-getMetricIdList did field startAt 0 p =
-  map MetricID <$> getIdListBy metrics idListSql1 (did, field, startAt) p
-
-getMetricIdList did ""    startAt endAt p =
-  map MetricID <$> getIdListBy metrics idListSql2 (did, startAt, endAt) p
-getMetricIdList did field startAt endAt p =
-  map MetricID <$> getIdListBy metrics idListSql3 (did, field, startAt, endAt) p
+getMetricIdList did field    startAt endAt p =
+  map MetricID <$> getIdListBy metrics sql args p
+  where (sql, args) = genGetMetricIdListQuery did field startAt endAt
 
 countMetric :: HasPSQL u => DeviceID -> String -> Int64 -> Int64 -> GenHaxl u w Int64
-countMetric did ""    startAt 0 = countBy metrics idListSql0 (did, startAt)
-countMetric did field startAt 0 = countBy metrics idListSql1 (did, field, startAt)
-
-countMetric did ""    startAt endAt = countBy metrics idListSql2 (did, startAt, endAt)
-countMetric did field startAt endAt = countBy metrics idListSql3 (did, field, startAt, endAt)
+countMetric did field    startAt endAt = countBy metrics sql args
+  where (sql, args) = genGetMetricIdListQuery did field startAt endAt
 
 removeMetric :: HasPSQL u => MetricID -> GenHaxl u w Int64
 removeMetric = removeBy metrics "id = ?" . Only
 
 dropMetric :: HasPSQL u => DeviceID -> String -> GenHaxl u w Int64
-dropMetric did ""    = removeBy metrics "dev_id = ?" (Only did)
-dropMetric did field = removeBy metrics "dev_id = ? AND field = ?" (did, field)
+dropMetric did field = removeBy metrics q a
+  where (q0, a0) = genEq "dev_id" did
+        (q1, a1) = genBy (not . null) "field" field
+
+        q = q0 `genAnd` q1
+        a = a0 ++ a1
 
 getLastMetricIdList :: HasPSQL u => DeviceID -> GenHaxl u w [(String, MetricID)]
 getLastMetricIdList a = dataFetch (GetLastMetricIdList a)
@@ -167,16 +168,24 @@ saveIndex :: HasPSQL u => IndexNameId -> DeviceID -> GenHaxl u w Int64
 saveIndex a b = uncachedRequest (SaveIndex a b)
 
 removeIndex :: HasPSQL u => Maybe IndexNameId -> Maybe DeviceID -> GenHaxl u w Int64
-removeIndex (Just nid) (Just did) = removeBy indexs "name_id = ? AND dev_id = ?" (nid, did)
-removeIndex (Just nid) Nothing = removeBy indexs "name_id = ?" (Only nid)
-removeIndex Nothing (Just did) = removeBy indexs "dev_id = ?" (Only did)
-removeIndex _ _ = pure 0
+removeIndex Nothing Nothing = pure 0
+removeIndex mNid mDid = removeBy indexs q a
+  where (q0, a0) = genMaybe "name_id" mNid
+        (q1, a1) = genMaybe "dev_id" mDid
+        q = q0 `genAnd` q1
+        a = a0 ++ a1
 
 getIndexDevIdList :: HasPSQL u => [IndexNameId] -> Page -> GenHaxl u w [DeviceID]
 getIndexDevIdList a b = dataFetch (GetIndexDevIdList a b)
 
 countIndex :: HasPSQL u => [IndexNameId] -> Maybe DeviceID -> GenHaxl u w Int64
-countIndex a b = dataFetch (CountIndex a b)
+countIndex [] Nothing   = pure 0
+countIndex nids mDid = countBy indexs q a
+  where (q0, a0) = genMaybe "dev_id" mDid
+        (q1, a1) = genIn "name_id" nids
+
+        q = q0 `genAnd` q1
+        a = a0 ++ a1
 
 createCard :: HasPSQL u => DeviceID -> String -> GenHaxl u w CardID
 createCard did field =
