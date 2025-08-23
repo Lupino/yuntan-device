@@ -65,7 +65,7 @@ instance FromJSON AuthInfo where
     authIndexList <- o .:? "ins" .!= []
     authDevId     <- o .:? "did"
     authExpireAt  <- o .:? "exp"
-    authNonce     <- o .:? "nonce"
+    authNonce     <- o .:? "nonce" .!= ""
     return AuthInfo{..}
 
 instance ToJSON AuthInfo where
@@ -76,15 +76,6 @@ instance ToJSON AuthInfo where
     , "exp"   .= authExpireAt
     , "nonce" .= authNonce
     ]
-
-
-defAuth :: AuthInfo
-defAuth = AuthInfo
-  { authRole = RoleEmpty
-  , authIndexList = []
-  , authDevId = Nothing
-  , authExpireAt = Nothing
-  }
 
 
 encodeJwt :: ByteString -> AuthInfo -> Either JwtError Jwt
