@@ -18,6 +18,9 @@ module Device.Handler
   , dropMetricHandler
   , getMetricListHandler
 
+  , saveCardHandler
+  , removeCardHandler
+
   , saveIndexHandler
   , removeIndexHandler
   , dropDeviceIndexHandler
@@ -227,7 +230,7 @@ saveMetricHandler Device{devID = did} = do
   createdAt <- CreatedAt <$> safeFormParam "created_at" ct
   case decode metric of
     Just ev -> void (lift $ saveMetric did createdAt ev) >> resultOK
-    Nothing -> errBadRequest "metric field is required."
+    Nothing -> errBadRequest "metric is required."
 
 
 -- DELETE /api/devices/:ident/metric/:field/:mid/
@@ -280,6 +283,26 @@ getMetricListHandler Device{devID = did} = do
     , getTotal  = total
     , getResult = catMaybes metrics
     }
+
+
+-- POST /api/devices/:ident/cards/
+saveCardHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+saveCardHandler Device{devID = did} = do
+  field <- formParam "field"
+  meta <- formParam "meta"
+  case decode meta of
+    Just ev -> do
+      cardId <- lift $ saveCard did field ev
+      json =<< lift (getCard cardId)
+    Nothing -> errBadRequest "meta is required."
+
+
+-- DELETE /api/devices/:ident/cards/:field/
+removeCardHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+removeCardHandler Device{devID = did} = do
+  field <- captureParam "field"
+  void $ lift $ removeCard did field
+  resultOK
 
 
 -- POST /api/devices/:ident/index/

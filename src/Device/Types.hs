@@ -345,6 +345,7 @@ data Device = Device
   , devGwId      :: DeviceID
   , devMeta      :: Value
   , devMetric    :: Value
+  , devCards     :: [Card]
   , devPingAt    :: CreatedAt
   , devKey       :: Key
   , devCreatedAt :: CreatedAt
@@ -365,6 +366,7 @@ instance FromRow Device where
       { devPingAt = 0
       , devKey = ""
       , devMetric = Null
+      , devCards = []
       , ..
       }
 
@@ -377,6 +379,7 @@ instance ToJSON Device where
     , "uuid"       .= devUUID
     , "meta"       .= devMeta
     , "metric"     .= devMetric
+    , "cards"      .= devCards
     , "addr"       .= devAddr
     , "gw_id"      .= devGwId
     , "ping_at"    .= devPingAt
@@ -394,6 +397,7 @@ instance FromJSON Device where
     devGwId      <- o .: "gw_id"
     devMeta      <- o .: "meta"
     devMetric    <- o .: "metric"
+    devCards     <- o .: "cards"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
     return Device{..}

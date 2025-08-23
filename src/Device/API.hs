@@ -18,6 +18,9 @@ module Device.API
   , removeMetric
   , dropMetric
 
+  , saveCard
+  , removeCard
+
   , module X
   ) where
 
@@ -46,8 +49,9 @@ import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               countDeviceByKey, countIndex,
                                               countMetric, createDevice,
-                                              createTable, getDevIdByCol,
-                                              getDevIdList, getDevIdListByGw,
+                                              createTable, getCard,
+                                              getDevIdByCol, getDevIdList,
+                                              getDevIdListByGw,
                                               getDevIdListByKey, getDevKeyById,
                                               getDevKeyId, getIndexDevIdList,
                                               getIndexNameId, getIndexNameId_,
@@ -82,11 +86,17 @@ genDeviceKey (DeviceID devid) = fromString $ "device:" ++ show devid
 genMetricKey :: DeviceID -> ByteString
 genMetricKey (DeviceID devid) = fromString $ "metric:" ++ show devid
 
+genCardsKey :: DeviceID -> ByteString
+genCardsKey (DeviceID devid) = fromString $ "cards:" ++ show devid
+
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
 
 unCacheMetric:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheMetric devid io = io $> remove redisEnv (genMetricKey devid)
+
+unCacheCards:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
+unCacheCards devid io = io $> remove redisEnv (genCardsKey devid)
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w (Maybe Device)
 getDevice devid = do
@@ -95,9 +105,15 @@ getDevice devid = do
     Nothing -> pure Nothing
     Just dev -> do
       metric <- getLastMetric devid
+      cards <- getCards devid
       pingAt <- getPingAt devid (devCreatedAt dev)
       key <- getDevKeyById (devKeyId dev)
-      pure $ Just dev { devPingAt = pingAt, devKey = key, devMetric = metric }
+      pure $ Just dev
+        { devPingAt = pingAt
+        , devKey = key
+        , devMetric = metric
+        , devCards = cards
+        }
 
 updateDeviceMeta
   :: (HasPSQL u, HasOtherEnv Cache u)
@@ -112,7 +128,8 @@ removeDevice devid = do
   v0 <- unCacheDevice devid $ RawAPI.removeDevice devid
   v1 <- dropMetric devid ""
   v2 <- RawAPI.removeIndex Nothing (Just devid)
-  return $ v0 + v1 + v2
+  v3 <- dropCards devid
+  return $ v0 + v1 + v2 + v3
 
 filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
@@ -267,8 +284,36 @@ getLastMetric_ did = do
   return $ foldl union Null vals
 
 getLastMetric :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
-getLastMetric did = do
-  cached' redisEnv (genMetricKey did) $ getLastMetric_ did
+getLastMetric did = cached' redisEnv (genMetricKey did) $ getLastMetric_ did
+
+
+saveCard
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> String -> Meta -> GenHaxl u w CardID
+saveCard did field meta = unCacheCards did $ do
+  mCardId <- RawAPI.getCardId did field
+  case mCardId of
+      Nothing -> RawAPI.createCard did field meta
+      Just cardId -> do
+        void $ RawAPI.updateCardMeta cardId meta
+        pure cardId
+
+removeCard
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> String -> GenHaxl u w Int64
+removeCard did field = do
+  mCardId <- RawAPI.getCardId did field
+  case mCardId of
+    Nothing     -> pure 0
+    Just cardId -> unCacheCards did $ RawAPI.removeCard cardId
+
+dropCards
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> GenHaxl u w Int64
+dropCards did = unCacheCards did $ RawAPI.dropCards did
+
+getCards :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w [Card]
+getCards did = cached' redisEnv (genCardsKey did) $ RawAPI.getCards did
 
 toHex :: ByteString -> Text
 toHex = toLower . decodeUtf8 . B16.encode

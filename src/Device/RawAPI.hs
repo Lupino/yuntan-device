@@ -35,6 +35,14 @@ module Device.RawAPI
   , getIndexDevIdList
   , countIndex
 
+  , createCard
+  , getCardId
+  , getCard
+  , updateCardMeta
+  , removeCard
+  , dropCards
+  , getCards
+
   , updateById
   , removeBy
   , getIdByCol
@@ -43,10 +51,12 @@ module Device.RawAPI
   ) where
 
 import           Data.Int          (Int64)
+import           Data.Maybe        (catMaybes, listToMaybe)
 import           Data.Text         (Text)
 import           Database.PSQL     (Action, Column, Columns, HasPSQL, Only (..),
                                     Page, TableName, ToRow (..), genAnd,
-                                    genBetweenBy, genBy, genEq, genIn, genMaybe)
+                                    genBetweenBy, genBy, genEq, genIn, genMaybe,
+                                    pageDesc)
 import           Device.DataSource
 import           Device.Types
 import           Haxl.Core         (GenHaxl, dataFetch, uncachedRequest)
@@ -187,12 +197,31 @@ countIndex nids mDid = countBy indexs q a
         q = q0 `genAnd` q1
         a = a0 ++ a1
 
-createCard :: HasPSQL u => DeviceID -> String -> GenHaxl u w CardID
-createCard did field =
-  CardID <$> addOne cards ["dev_id", "field", "meta"] (did, field, "{}" :: String)
+createCard :: HasPSQL u => DeviceID -> String -> Meta -> GenHaxl u w CardID
+createCard did field meta =
+  CardID <$> addOne cards ["dev_id", "field", "meta"] (did, field, meta)
+
+updateCardMeta :: HasPSQL u => CardID -> Meta -> GenHaxl u w Int64
+updateCardMeta (CardID cid) meta =
+  updateById cards cid ["meta"] (Only meta)
+
+getCardId :: HasPSQL u => DeviceID -> String -> GenHaxl u w (Maybe CardID)
+getCardId did field =
+  fmap CardID <$> getIdBy cards "dev_id = ? AND field = ?" (did, field)
 
 getCard :: HasPSQL u => CardID -> GenHaxl u w (Maybe Card)
 getCard a = dataFetch (GetCard a)
+
+removeCard :: HasPSQL u => CardID -> GenHaxl u w Int64
+removeCard = removeBy cards "id = ?" . Only
+
+dropCards :: HasPSQL u => DeviceID -> GenHaxl u w Int64
+dropCards = removeBy cards "dev_id = ?" . Only
+
+getCards :: HasPSQL u => DeviceID -> GenHaxl u w [Card]
+getCards did = do
+  cardIds <- getIdListBy cards "dev_id = ?" (Only did) (pageDesc 0 0 "id")
+  catMaybes <$> mapM (getCard . CardID) cardIds
 
 ---------------------------- Util ----------------------------------
 
@@ -215,6 +244,9 @@ getIdByCol a b c = dataFetch (GetIdByCol a b c)
 
 getIdListBy :: (HasPSQL u, ToRow a) => TableName -> String -> a -> Page -> GenHaxl u w [Int64]
 getIdListBy a b c p = dataFetch (GetIdListBy a b (toRow c) p)
+
+getIdBy :: (HasPSQL u, ToRow a) => TableName -> String -> a -> GenHaxl u w (Maybe Int64)
+getIdBy a b c = listToMaybe <$> getIdListBy a b c (pageDesc 0 1 "id")
 
 countBy :: (HasPSQL u, ToRow a) => TableName -> String -> a -> GenHaxl u w Int64
 countBy a b c = dataFetch (CountBy a b (toRow c))
