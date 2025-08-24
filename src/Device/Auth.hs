@@ -29,7 +29,7 @@ import           Database.PSQL          (HasPSQL)
 import           Device.API             (countIndex, getIndexNameId_)
 import           Device.Types           (Device (..), DeviceID, IndexName)
 import           Device.Util            (getEpochTime, parseIndexName)
-import           Jose.Jwa               (JwsAlg (RS256))
+import           Jose.Jwa               (JwsAlg (HS256))
 import           Jose.Jwk               (Jwk (SymmetricJwk))
 import           Jose.Jwt               (Jwt (..), JwtContent (..),
                                          JwtEncoding (..), JwtError,
@@ -95,13 +95,13 @@ instance ToJSON AuthInfo where
 
 
 encodeJwt :: MonadRandom m => ByteString -> AuthInfo -> m (Either JwtError Jwt)
-encodeJwt key info = Jwt.encode [jwk]  (JwsEncoding RS256) (Claims . L.toStrict $ Aeson.encode info)
+encodeJwt key info = Jwt.encode [jwk]  (JwsEncoding HS256) (Claims . L.toStrict $ Aeson.encode info)
   where jwk = SymmetricJwk key Nothing Nothing Nothing
 
 
 decodeJwt :: MonadRandom m => ByteString -> LT.Text -> m (Maybe AuthInfo)
 decodeJwt key bearerToken = do
-  decoded <- Jwt.decode [jwk] (Just (JwsEncoding RS256)) token
+  decoded <- Jwt.decode [jwk] (Just (JwsEncoding HS256)) token
   case decoded of
     Left _              -> pure $ Nothing
     Right (Jws (_, bs)) -> pure $ Aeson.decodeStrict bs
