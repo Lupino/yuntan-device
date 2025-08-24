@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuthInfo Form</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 1.1em;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .optional {
+            color: #888;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
+
+        .index-list-container {
+            border: 2px dashed #e1e5e9;
+            border-radius: 10px;
+            padding: 20px;
+            background: rgba(248, 250, 252, 0.8);
+        }
+
+        .index-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .index-item input {
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-add {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-remove {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            font-size: 18px;
+            margin-top: 30px;
+        }
+
+        .output {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .output h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .output pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+        }
+
+        .datetime-container {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .datetime-container > div {
+            flex: 1;
+        }
+
+        .help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AuthInfo Configuration</h1>
+        <form id="authInfoForm">
+            <div class="form-group">
+                <label for="authRole">Auth Role *</label>
+                <select id="authRole">
+                    <option value="empty">Select a role...</option>
+                    <option value="admin">Admin</option>
+                    <option value="normal">Normal</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="authIndexList">Index List *</label>
+                <div class="index-list-container">
+                    <div id="indexList"> </div>
+                    <button type="button" class="btn btn-add" onclick="addIndex()">+ Add Index</button>
+                </div>
+                <div class="help-text">At least one index name is required</div>
+            </div>
+
+            <div class="form-group">
+                <label for="authManager">Auth Manager <span class="optional">(optional)</span></label>
+                <input type="text" id="authManager" placeholder="Manager index name">
+            </div>
+
+            <div class="form-group">
+                <label for="authUser">Auth User <span class="optional">(optional)</span></label>
+                <input type="text" id="authUser" placeholder="User index name">
+            </div>
+
+            <div class="form-group">
+                <label for="authDevId">Device ID <span class="optional">(optional)</span></label>
+                <input type="text" id="authDevId" placeholder="Device identifier">
+            </div>
+
+            <div class="form-group">
+                <label>Expiration <span class="optional">(optional)</span></label>
+                <div class="datetime-container">
+                    <div>
+                        <input type="datetime-local" id="authExpireAt">
+                        <div class="help-text">Select expiration date and time</div>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-add" onclick="setCurrentTime()">Use Current Time</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="authNonce">Nonce *</label>
+                <input type="text" id="authNonce" placeholder="Security nonce" required>
+                <button type="button" class="btn btn-add" onclick="generateNonce()" style="margin-top: 10px;">Generate Random Nonce</button>
+                <div class="help-text">A unique string for security purposes</div>
+            </div>
+
+            <div class="form-group">
+                <label for="jwtSecret">JWT Secret Key *</label>
+                <input type="password" id="jwtSecret" placeholder="Secret key for JWT signing" required>
+                <button type="button" class="btn btn-add" onclick="generateSecret()" style="margin-top: 10px;">Generate Random Secret</button>
+                <button type="button" class="btn btn-add" onclick="toggleSecretVisibility()" style="margin-top: 10px; margin-left: 10px;">👁️ Show/Hide</button>
+                <div class="help-text">Secret key used to sign the JWT token with HS256</div>
+            </div>
+
+            <button type="submit" class="btn btn-submit">Generate AuthInfo & JWT Token</button>
+        </form>
+
+        <div class="output" id="output">
+            <h3>Generated Haskell AuthInfo:</h3>
+            <pre id="haskellOutput"></pre>
+            <h3>Generated JSON:</h3>
+            <pre id="jsonOutput"></pre>
+            <h3>Generated JWT Token (HS256):</h3>
+            <pre id="jwtOutput"></pre>
+            <div class="help-text" style="margin-top: 10px;">
+                <strong>JWT Components:</strong><br>
+                • Header: Contains algorithm (HS256) and token type<br>
+                • Payload: Contains the AuthInfo data<br>
+                • Signature: HMAC-SHA256 signature using your secret key
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // JWT Base64 URL encoding
+        function base64URLEncode(str) {
+            return btoa(str)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        // HMAC-SHA256 implementation
+        async function hmacSHA256(key, data) {
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(key);
+            const dataBuffer = encoder.encode(data);
+
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+
+            const signature = await crypto.subtle.sign('HMAC', cryptoKey, dataBuffer);
+            return new Uint8Array(signature);
+        }
+
+        // Convert Uint8Array to base64
+        function uint8ArrayToBase64(uint8Array) {
+            let binary = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            return btoa(binary);
+        }
+
+        // Generate JWT with HS256
+        async function generateJWT(payload, secret) {
+            const header = {
+                "alg": "HS256",
+                "typ": "JWT"
+            };
+
+            const encodedHeader = base64URLEncode(JSON.stringify(header));
+            const encodedPayload = base64URLEncode(JSON.stringify(payload));
+            const data = `${encodedHeader}.${encodedPayload}`;
+
+            const signature = await hmacSHA256(secret, data);
+            const encodedSignature = uint8ArrayToBase64(signature)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+
+            return `${data}.${encodedSignature}`;
+        }
+
+        function addIndex() {
+            const indexList = document.getElementById('indexList');
+            const newItem = document.createElement('div');
+            newItem.className = 'index-item';
+            newItem.innerHTML = `
+                <input type="text" placeholder="Enter index name..." required>
+                <button type="button" class="btn btn-remove" onclick="removeIndex(this)">Remove</button>
+            `;
+            indexList.appendChild(newItem);
+        }
+
+        function removeIndex(button) {
+            const indexList = document.getElementById('indexList');
+            button.parentElement.remove();
+        }
+
+        function generateNonce() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 32; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('authNonce').value = result;
+        }
+
+        function generateSecret() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+            let result = '';
+            for (let i = 0; i < 64; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('jwtSecret').value = result;
+        }
+
+        function toggleSecretVisibility() {
+            const secretInput = document.getElementById('jwtSecret');
+            secretInput.type = secretInput.type === 'password' ? 'text' : 'password';
+        }
+
+        function setCurrentTime() {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
+            document.getElementById('authExpireAt').value = localISOTime;
+        }
+
+        document.getElementById('authInfoForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const role = document.getElementById('authRole').value;
+            const indexInputs = document.querySelectorAll('#indexList input');
+            const indexList = Array.from(indexInputs)
+                .map(input => input.value.trim())
+                .filter(value => value !== '');
+
+            // if (indexList.length === 0) {
+            //     alert('At least one index name is required');
+            //     return;
+            // }
+
+            const manager = document.getElementById('authManager').value.trim() || null;
+            const user = document.getElementById('authUser').value.trim() || null;
+            const devId = document.getElementById('authDevId').value.trim() || null;
+            const expireAt = document.getElementById('authExpireAt').value;
+            const nonce = document.getElementById('authNonce').value;
+            const jwtSecret = document.getElementById('jwtSecret').value;
+
+            if (!jwtSecret) {
+                alert('JWT Secret Key is required');
+                return;
+            }
+
+            // Convert datetime to Unix timestamp if provided
+            let expireTimestamp = null;
+            if (expireAt) {
+                expireTimestamp = Math.floor(new Date(expireAt).getTime() / 1000);
+            }
+
+            // Generate Haskell code
+            const haskellOutput = generateHaskellCode(role, indexList, manager, user, devId, expireTimestamp, nonce);
+
+            // Generate JSON payload
+            const now = Math.floor(Date.now() / 1000);
+            const jsonPayload = {
+                rol: role,
+                ins: indexList,
+                min: manager,
+                did: devId,
+                iat: now, // issued at
+                exp: expireTimestamp || (now + 3600), // expires in 1 hour if not specified
+                sub: user || 'anonymous', // subject
+                jti: nonce // JWT ID using nonce
+            };
+
+            // Add JWT standard claims
+            const jwtPayload = { ...jsonPayload };
+
+            try {
+                // Generate JWT token
+                const jwtToken = await generateJWT(jwtPayload, jwtSecret);
+
+                document.getElementById('haskellOutput').textContent = haskellOutput;
+                document.getElementById('jsonOutput').textContent = JSON.stringify(jsonPayload, null, 2);
+                document.getElementById('jwtOutput').textContent = jwtToken;
+                document.getElementById('output').style.display = 'block';
+                document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                alert('Error generating JWT: ' + error.message);
+            }
+        });
+
+        function generateHaskellCode(role, indexList, manager, user, devId, expireAt, nonce) {
+            const formatMaybe = (value) => value ? `Just "${value}"` : 'Nothing';
+            const formatMaybeInt = (value) => value ? `Just ${value}` : 'Nothing';
+            const formatStringList = (list) => '[' + list.map(item => `"${item}"`).join(', ') + ']';
+
+            return `AuthInfo
+  { authRole      = ${role}
+  , authIndexList = ${formatStringList(indexList)}
+  , authManager   = ${formatMaybe(manager)}
+  , authUser      = ${formatMaybe(user)}
+  , authDevId     = ${formatMaybe(devId)}
+  , authExpireAt  = ${formatMaybeInt(expireAt)}
+  , authNonce     = "${nonce}"
+  }`;
+        }
+
+        // Initialize with random nonce and secret
+        window.onload = function() {
+            generateNonce();
+            generateSecret();
+        };
+    </script>
+</body>
+</html>
