@@ -70,6 +70,7 @@ library
                      , base16-bytestring
 
                      , jose-jwt
+                     , crypton
   default-language:    Haskell2010
 
 executable yuntan-device

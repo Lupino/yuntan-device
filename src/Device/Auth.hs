@@ -5,33 +5,40 @@ module Device.Auth
   ( genTokenHandler
   , requireAdmin
   , requirePerm
+  , requireManager
   , requireIndexName
   ) where
 
 
-import           Control.Monad.Reader (lift)
-import           Data.Aeson           (FromJSON (..), ToJSON (..), object,
-                                       withObject, withText, (.!=), (.:?), (.=))
-import qualified Data.Aeson           as Aeson (decodeStrict, encode)
-import           Data.Aeson.Types     (Parser)
-import           Data.ByteString      (ByteString)
-import qualified Data.ByteString.Lazy as L (toStrict)
-import           Data.Int             (Int64)
-import           Data.Maybe           (catMaybes)
-import           Data.Text            (Text)
-import           Data.Text.Encoding   (decodeUtf8, encodeUtf8)
-import qualified Data.Text.Lazy       as LT (drop, toStrict)
-import           Database.PSQL        (HasPSQL)
-import           Device.API           (countIndex, getIndexNameId_)
-import           Device.Types         (Device (..), DeviceID, IndexName)
-import           Device.Util          (getEpochTime, parseIndexName)
-import           Jose.Jwa             (JwsAlg (HS256))
-import           Jose.Jws             (hmacDecode, hmacEncode)
-import           Jose.Jwt             (Jwt (..), JwtError)
-import           Network.HTTP.Types   (status401, status403)
-import           Web.Scotty.Haxl      (ActionH)
-import           Web.Scotty.Trans     (header, jsonData)
-import           Web.Scotty.Utils     (err, errBadRequest, ok, safeQueryParam)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Reader   (lift)
+import           Crypto.Random          (MonadRandom)
+import           Data.Aeson             (FromJSON (..), ToJSON (..), object,
+                                         withObject, withText, (.!=), (.:?),
+                                         (.=))
+import qualified Data.Aeson             as Aeson (decodeStrict, encode)
+import           Data.Aeson.Types       (Parser)
+import           Data.ByteString        (ByteString)
+import qualified Data.ByteString.Lazy   as L (toStrict)
+import           Data.Int               (Int64)
+import           Data.Maybe             (catMaybes)
+import           Data.Text              (Text)
+import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy         as LT (Text, drop, toStrict)
+import           Database.PSQL          (HasPSQL)
+import           Device.API             (countIndex, getIndexNameId_)
+import           Device.Types           (Device (..), DeviceID, IndexName)
+import           Device.Util            (getEpochTime, parseIndexName)
+import           Jose.Jwa               (JwsAlg (RS256))
+import           Jose.Jwk               (Jwk (SymmetricJwk))
+import           Jose.Jwt               (Jwt (..), JwtContent (..),
+                                         JwtEncoding (..), JwtError,
+                                         Payload (..))
+import qualified Jose.Jwt               as Jwt (decode, encode)
+import           Network.HTTP.Types     (status401, status403)
+import           Web.Scotty.Haxl        (ActionH)
+import           Web.Scotty.Trans       (header, jsonData)
+import           Web.Scotty.Utils       (err, errBadRequest, ok, safeQueryParam)
 
 data Role = RoleAdmin | RoleNormal | Role Text | RoleEmpty
   deriving (Show, Eq, Ord)
@@ -56,6 +63,7 @@ data AuthInfo = AuthInfo
   , authManager   :: Maybe IndexName
   , authUser      :: Maybe IndexName
   , authDevId     :: Maybe DeviceID
+  , authIssueAt   :: Maybe Int64
   , authExpireAt  :: Maybe Int64
   , authNonce     :: String
   }
@@ -86,26 +94,33 @@ instance ToJSON AuthInfo where
     ]
 
 
-encodeJwt :: ByteString -> AuthInfo -> Either JwtError Jwt
-encodeJwt key = hmacEncode HS256 key . L.toStrict . Aeson.encode
+encodeJwt :: MonadRandom m => ByteString -> AuthInfo -> m (Either JwtError Jwt)
+encodeJwt key info = Jwt.encode [jwk]  (JwsEncoding RS256) (Claims . L.toStrict $ Aeson.encode info)
+  where jwk = SymmetricJwk key Nothing Nothing Nothing
 
 
-decodeJwt :: ByteString -> ByteString -> Either JwtError (Maybe AuthInfo)
-decodeJwt key token =
-  case hmacDecode key token of
-    Left e        -> Left e
-    Right (_, bs) -> Right $ Aeson.decodeStrict bs
+decodeJwt :: MonadRandom m => ByteString -> LT.Text -> m (Maybe AuthInfo)
+decodeJwt key bearerToken = do
+  decoded <- Jwt.decode [jwk] (Just (JwsEncoding RS256)) token
+  case decoded of
+    Left _              -> pure $ Nothing
+    Right (Jws (_, bs)) -> pure $ Aeson.decodeStrict bs
+    Right (Jwe (_, bs)) -> pure $ Aeson.decodeStrict bs
+    Right (Unsecured _) -> pure $ Nothing
 
+  where jwk = SymmetricJwk key Nothing Nothing Nothing
+        token = encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken
 
 getAuthInfo :: ByteString -> ActionH u w (Maybe AuthInfo)
 getAuthInfo key = do
   mBearerToken <- header "authorization"
   case mBearerToken of
     Nothing          -> pure Nothing
-    Just bearerToken ->
-      case decodeJwt key (encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken) of
-        Right (Just authInfo) -> pure $ Just authInfo
-        _                     -> pure Nothing
+    Just bearerToken -> do
+      decoded <- liftIO $ decodeJwt key bearerToken
+      case decoded of
+        Just authInfo -> pure $ Just authInfo
+        _             -> pure Nothing
 
 
 checkExpire :: AuthInfo -> ActionH u w () -> ActionH u w ()
@@ -205,6 +220,7 @@ doCheckIndexName expect names next nextCheck
 genTokenHandler :: ByteString -> ActionH u w ()
 genTokenHandler key = do
   authInfo <- jsonData
-  case encodeJwt key authInfo of
+  eJwt <- liftIO $ encodeJwt key authInfo
+  case eJwt of
     Left e    -> errBadRequest $ show e
     Right jwt -> ok "token" $ decodeUtf8 $ unJwt jwt
