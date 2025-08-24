@@ -134,18 +134,21 @@ application mqtt mEmqxAuth authEnable authKey = do
   middleware logStdout
 
   post "/api/devices/"                             $ requireAdmin $ createDeviceHandler allowKeys
-  post "/api/devices/:ident/token/"                $ rdp $ updateDeviceHandler "token"
-  post "/api/devices/:ident/uuid/"                 $ rdp $ updateDeviceHandler "uuid"
-  post "/api/devices/:ident/addr/"                 $ rdp $ updateDeviceHandler "addr"
-  post "/api/devices/:ident/gw_id/"                $ rdp $ updateDeviceHandler "gw_id"
-  post "/api/devices/:ident/created_at/"           $ rdp $ updateDeviceHandler "created_at"
-  post "/api/devices/:ident/ping_at/"              $ rdp updateDevicePingAtHandler
-  post "/api/devices/:ident/meta/"                 $ rdp updateDeviceMetaHandler
+  post "/api/devices/:ident/token/"                $ rad $ updateDeviceHandler "token"
+  post "/api/devices/:ident/uuid/"                 $ rad $ updateDeviceHandler "uuid"
+  post "/api/devices/:ident/addr/"                 $ rad $ updateDeviceHandler "addr"
+  post "/api/devices/:ident/gw_id/"                $ rad $ updateDeviceHandler "gw_id"
+  post "/api/devices/:ident/created_at/"           $ rad $ updateDeviceHandler "created_at"
+  post "/api/devices/:ident/ping_at/"              $ rad updateDevicePingAtHandler
+  post "/api/devices/:ident/meta/"                 $ rad updateDeviceMetaHandler
+
   get "/api/devices/"                              $ requireIndexName $ getDeviceListHandler allowKeys
   get "/api/devices/:ident/"                       $ rdp getDeviceHandler
   post "/api/devices/:ident/rpc/"                  $ rdp $ rpcHandler mqtt
-  post "/api/devices/:ident/metric/"               $ rdp saveMetricHandler
-  post "/api/devices/:ident/cards/"                $ rdp saveCardHandler
+
+  post "/api/devices/:ident/metric/"               $ rad saveMetricHandler
+  post "/api/devices/:ident/cards/"                $ rad saveCardHandler
+
   get "/api/devices/:ident/metric/:field/"         $ rdp getMetricListHandler
 
   delete "/api/devices/:ident/"                    $ rad (removeDeviceHandler mqtt)
