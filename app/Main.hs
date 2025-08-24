@@ -139,26 +139,26 @@ application mqtt mEmqxAuth authEnable authKey = do
   post "/api/devices/:ident/addr/"                 $ rad $ updateDeviceHandler "addr"
   post "/api/devices/:ident/gw_id/"                $ rad $ updateDeviceHandler "gw_id"
   post "/api/devices/:ident/created_at/"           $ rad $ updateDeviceHandler "created_at"
-  post "/api/devices/:ident/ping_at/"              $ rad updateDevicePingAtHandler
-  post "/api/devices/:ident/meta/"                 $ rad updateDeviceMetaHandler
+  post "/api/devices/:ident/ping_at/"              $ rmd updateDevicePingAtHandler
+  post "/api/devices/:ident/meta/"                 $ rmd updateDeviceMetaHandler
 
   get "/api/devices/"                              $ requireIndexName $ getDeviceListHandler allowKeys
   get "/api/devices/:ident/"                       $ rdp getDeviceHandler
   post "/api/devices/:ident/rpc/"                  $ rdp $ rpcHandler mqtt
 
-  post "/api/devices/:ident/metric/"               $ rad saveMetricHandler
-  post "/api/devices/:ident/cards/"                $ rad saveCardHandler
+  post "/api/devices/:ident/metric/"               $ rmd saveMetricHandler
+  post "/api/devices/:ident/cards/"                $ rmd saveCardHandler
 
   get "/api/devices/:ident/metric/:field/"         $ rdp getMetricListHandler
 
-  delete "/api/devices/:ident/"                    $ rad (removeDeviceHandler mqtt)
-  delete "/api/devices/:ident/metric/:field/"      $ rad dropMetricHandler
-  delete "/api/devices/:ident/cards/:field/"       $ rad removeCardHandler
-  delete "/api/devices/:ident/metric/:field/:mid/" $ rad removeMetricHandler
+  delete "/api/devices/:ident/"                    $ rmd (removeDeviceHandler mqtt)
+  delete "/api/devices/:ident/metric/:field/"      $ rmd dropMetricHandler
+  delete "/api/devices/:ident/cards/:field/"       $ rmd removeCardHandler
+  delete "/api/devices/:ident/metric/:field/:mid/" $ rmd removeMetricHandler
 
-  post "/api/devices/:ident/index/"                $ rad saveIndexHandler
-  post "/api/devices/:ident/index/delete/"         $ rad removeIndexHandler
-  post "/api/devices/:ident/index/drop/"           $ rad dropDeviceIndexHandler
+  post "/api/devices/:ident/index/"                $ rmd saveIndexHandler
+  post "/api/devices/:ident/index/delete/"         $ rmd removeIndexHandler
+  post "/api/devices/:ident/index/drop/"           $ rmd dropDeviceIndexHandler
   post "/api/index/drop/"                          $ requireAdmin dropIndexHandler
   post "/api/gen_token/"                           $ requireAdmin $ Auth.genTokenHandler authKey
 
@@ -172,6 +172,8 @@ application mqtt mEmqxAuth authEnable authKey = do
   where allowKeys = mAllowKeys mqtt
         requireAdmin = Auth.requireAdmin authEnable authKey
         requirePerm = Auth.requirePerm authEnable authKey
+        requireManager = Auth.requireManager authEnable authKey
         requireIndexName = Auth.requireIndexName authEnable authKey
         rdp = requireDevice . requirePerm
         rad = requireAdmin . requireDevice
+        rmd =  requireDevice . requireManager

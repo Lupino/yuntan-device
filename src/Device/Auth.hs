@@ -53,6 +53,8 @@ instance ToJSON Role where
 data AuthInfo = AuthInfo
   { authRole      :: Role
   , authIndexList :: [IndexName]
+  , authManager   :: Maybe IndexName
+  , authUser      :: Maybe IndexName
   , authDevId     :: Maybe DeviceID
   , authExpireAt  :: Maybe Int64
   , authNonce     :: String
@@ -64,17 +66,23 @@ instance FromJSON AuthInfo where
     authRole      <- o .:? "rol" .!= RoleEmpty
     authIndexList <- o .:? "ins" .!= []
     authDevId     <- o .:? "did"
+    authManager   <- o .:? "min"
+    authIssueAt   <- o .:? "iat"
+    authUser      <- o .:? "sub"
     authExpireAt  <- o .:? "exp"
-    authNonce     <- o .:? "nonce" .!= ""
+    authNonce     <- o .:? "jti" .!= ""
     return AuthInfo{..}
 
 instance ToJSON AuthInfo where
   toJSON AuthInfo {..} = object
-    [ "rol"   .= authRole
-    , "did"   .= authDevId
-    , "ins"   .= authIndexList
-    , "exp"   .= authExpireAt
-    , "nonce" .= authNonce
+    [ "rol" .= authRole
+    , "did" .= authDevId
+    , "min" .= authManager
+    , "ins" .= authIndexList
+    , "iat" .= authIssueAt
+    , "exp" .= authExpireAt
+    , "sub" .= authUser
+    , "jti" .= authNonce
     ]
 
 
@@ -126,13 +134,24 @@ requireAdmin True key next = do
     noPermessions
 
 
+requireManager :: HasPSQL u => Bool -> ByteString -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
+requireManager False _ next dev = next dev
+requireManager True key next dev = do
+  requireAuth key $ \authInfo ->
+    checkExpire authInfo
+    $ checkAdmin (authRole authInfo) (next dev)
+    $ checkIndex (catMaybes [authManager authInfo, authUser authInfo]) next dev
+    $ checkDevId (authDevId authInfo) next dev
+    noPermessions
+
+
 requirePerm :: HasPSQL u => Bool -> ByteString -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requirePerm False _ next dev = next dev
 requirePerm True key next dev = do
   requireAuth key $ \authInfo ->
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) (next dev)
-    $ checkIndex (authIndexList authInfo) next dev
+    $ checkIndex (authIndexList authInfo ++ catMaybes [authManager authInfo, authUser authInfo]) next dev
     $ checkDevId (authDevId authInfo) next dev
     noPermessions
 
