@@ -4,14 +4,17 @@ module Device.DataSource.Index
   ( saveIndex
   , getIndexDevIdList
 
+  , getIndexList
+
   , indexs
   , indexNames
   ) where
 
 
 import           Data.Int      (Int64)
-import           Database.PSQL (Only (..), PSQL, Page (..), TableName,
-                                insertOrUpdate, selectInOnly, selectOnly)
+import           Database.PSQL (Only (..), PSQL, Page (..), TableName, as,
+                                genIn, insertOrUpdate, leftJoin, pageDesc,
+                                select, selectInOnly, selectOnly)
 import           Device.Types
 import           Device.Util   (getEpochTime)
 
@@ -33,3 +36,11 @@ getIndexDevIdList :: [IndexNameId] -> Page -> PSQL [DeviceID]
 getIndexDevIdList [] _   = pure []
 getIndexDevIdList [x] p  = selectOnly indexs "dev_id" "name_id = ?" (Only x) p
 getIndexDevIdList nids p = selectInOnly indexs ["dev_id"] "name_id" nids "" () p
+
+
+getIndexList :: [DeviceID] -> PSQL [Index]
+getIndexList [] = pure []
+getIndexList dids =
+  select tb ["n.name", "i.dev_id", "i.created_at"] q a (pageDesc 0 0 "i.id")
+  where tb = leftJoin (indexs `as` "i") (indexNames `as` "n") "n.id = i.name_id"
+        (q, a) = genIn "i.dev_id" dids

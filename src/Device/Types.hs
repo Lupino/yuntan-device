@@ -17,6 +17,7 @@ module Device.Types
 
   , IndexNameId (..)
   , IndexName (..)
+  , Index (..)
 
   , Card (..)
   , CardID (..)
@@ -346,6 +347,7 @@ data Device = Device
   , devMeta      :: Value
   , devMetric    :: Value
   , devCards     :: [Card]
+  , devIndex     :: [Index]
   , devPingAt    :: CreatedAt
   , devKey       :: Key
   , devCreatedAt :: CreatedAt
@@ -367,6 +369,7 @@ instance FromRow Device where
       , devKey = ""
       , devMetric = Null
       , devCards = []
+      , devIndex = []
       , ..
       }
 
@@ -380,6 +383,7 @@ instance ToJSON Device where
     , "meta"       .= devMeta
     , "metric"     .= devMetric
     , "cards"      .= devCards
+    , "index"      .= devIndex
     , "addr"       .= devAddr
     , "gw_id"      .= devGwId
     , "ping_at"    .= devPingAt
@@ -398,6 +402,7 @@ instance FromJSON Device where
     devMeta      <- o .: "meta"
     devMetric    <- o .: "metric"
     devCards     <- o .: "cards"
+    devIndex     <- o .: "index"
     devPingAt    <- o .: "ping_at"
     devCreatedAt <- o .: "created_at"
     return Device{..}
@@ -569,3 +574,32 @@ instance FromJSON Card where
     cardMeta      <- o .: "meta"
     cardCreatedAt <- o .: "created_at"
     return Card{..}
+
+
+data Index = Index
+  { indexName      :: IndexName
+  , indexDevId     :: DeviceID
+  , indexCreatedAt :: CreatedAt
+  }
+  deriving (Show)
+
+instance FromRow Index where
+  fromRow = do
+    indexName      <- field
+    indexDevId     <- field
+    indexCreatedAt <- field
+    return Index { .. }
+
+instance ToJSON Index where
+  toJSON Index {..} = object
+    [ "name"       .= indexName
+    , "dev_id"     .= indexDevId
+    , "created_at" .= indexCreatedAt
+    ]
+
+instance FromJSON Index where
+  parseJSON = withObject "Index" $ \o -> do
+    indexName      <- o .: "name"
+    indexDevId     <- o .: "dev_id"
+    indexCreatedAt <- o .: "created_at"
+    return Index{..}

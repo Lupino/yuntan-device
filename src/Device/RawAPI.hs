@@ -34,6 +34,7 @@ module Device.RawAPI
   , removeIndex
   , getIndexDevIdList
   , countIndex
+  , getIndexList
 
   , createCard
   , getCardId
@@ -187,6 +188,9 @@ removeIndex mNid mDid = removeBy indexs q a
 
 getIndexDevIdList :: HasPSQL u => [IndexNameId] -> Page -> GenHaxl u w [DeviceID]
 getIndexDevIdList a b = dataFetch (GetIndexDevIdList a b)
+
+getIndexList :: HasPSQL u => DeviceID -> GenHaxl u w [Index]
+getIndexList = dataFetch . GetIndexList
 
 countIndex :: HasPSQL u => [IndexNameId] -> Maybe DeviceID -> GenHaxl u w Int64
 countIndex [] Nothing   = pure 0

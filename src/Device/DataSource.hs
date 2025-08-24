@@ -54,6 +54,7 @@ data DeviceReq a where
 
   SaveIndex :: IndexNameId -> DeviceID -> DeviceReq Int64
   GetIndexDevIdList :: [IndexNameId] -> Page -> DeviceReq [DeviceID]
+  GetIndexList :: DeviceID -> DeviceReq [Index]
 
   AddOne :: TableName -> Columns -> [Action] -> DeviceReq Int64
   AddOne_ :: TableName -> Columns -> [Action] -> DeviceReq Int64
@@ -81,6 +82,7 @@ instance Hashable (DeviceReq a) where
 
   hashWithSalt s (SaveIndex a b)         = hashWithSalt s (7::Int, a, b)
   hashWithSalt s (GetIndexDevIdList a b) = hashWithSalt s (8::Int, a, b)
+  hashWithSalt s (GetIndexList a)        = hashWithSalt s (9::Int, a)
 
   hashWithSalt s (AddOne a b c)          = hashWithSalt s (10::Int, a, b, c)
   hashWithSalt s (AddOne_ a b c)         = hashWithSalt s (11::Int, a, b, c)
@@ -112,6 +114,7 @@ isSameType (BlockedFetch (GetCard _) _) (BlockedFetch (GetCard _) _) = True
 isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
 isSameType (BlockedFetch (GetMetric _) _) (BlockedFetch (GetMetric _) _) = True
 isSameType (BlockedFetch (GetLastMetricIdList _) _) (BlockedFetch (GetLastMetricIdList _) _) = True
+isSameType (BlockedFetch (GetIndexList _) _) (BlockedFetch (GetIndexList _) _) = True
 isSameType (BlockedFetch (GetIdByCol t0 c0 _) _) (BlockedFetch (GetIdByCol t1 c1 _) _) = c0 == c1 && t0 == t1
 isSameType _ _ = False
 
@@ -213,6 +216,26 @@ fetchSync reqs@((BlockedFetch (GetLastMetricIdList _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
+fetchSync reqs@((BlockedFetch (GetIndexList _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getIndexList ids)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq (groupBy isSameDev a)) reqs
+
+  where ids = [i | BlockedFetch (GetIndexList i) _ <- reqs]
+
+        isSameDev :: Index -> Index -> Bool
+        isSameDev x y = indexDevId x == indexDevId y
+
+        putReq :: [[Index]] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetIndexList _) rvar) = putSuccess rvar []
+        putReq ([]:xs) req = putReq xs req
+        putReq (x@(index:_):xs) req@(BlockedFetch (GetIndexList i) rvar)
+          | i == indexDevId index = putSuccess rvar x
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
 fetchSync reqs@((BlockedFetch (GetIdByCol tb col _) _):_) prefix pool = do
   e <- CE.try $ runPSQLPool prefix pool (getIdListInCol tb col vals)
   case e of
@@ -256,6 +279,7 @@ fetchReq (GetLastMetricIdList a) = getLastMetricIdList a
 
 fetchReq (SaveIndex a b)         = saveIndex a b
 fetchReq (GetIndexDevIdList a b) = getIndexDevIdList a b
+fetchReq (GetIndexList a)        = getIndexList [a]
 
 fetchReq (AddOne a b c)          = addOne a b c
 fetchReq (AddOne_ a b c)         = addOne_ a b c

@@ -328,14 +328,14 @@ removeIndexHandler Device{devID = did} = do
 
 
 -- POST /api/devices/:ident/index/drop/
-dropDeviceIndexHandler :: (Monoid w, HasPSQL u) => Device -> ActionH u w ()
+dropDeviceIndexHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 dropDeviceIndexHandler Device{devID = did} = do
   lift $ void $ removeIndex Nothing (Just did)
   resultOK
 
 
 -- POST /api/index/drop/
-dropIndexHandler :: (Monoid w, HasPSQL u) => ActionH u w ()
+dropIndexHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
 dropIndexHandler = do
   indexName <- IndexName <$> formParam "index_name"
   lift $ do

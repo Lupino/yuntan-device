@@ -153,7 +153,7 @@ application mqtt mEmqxAuth authEnable authKey = do
   delete "/api/devices/:ident/cards/:field/"       $ rad removeCardHandler
   delete "/api/devices/:ident/metric/:field/:mid/" $ rad removeMetricHandler
 
-  post "/api/devices/:ident/index/"                $ rdp saveIndexHandler
+  post "/api/devices/:ident/index/"                $ rad saveIndexHandler
   post "/api/devices/:ident/index/delete/"         $ rad removeIndexHandler
   post "/api/devices/:ident/index/drop/"           $ rad dropDeviceIndexHandler
   post "/api/index/drop/"                          $ requireAdmin dropIndexHandler
