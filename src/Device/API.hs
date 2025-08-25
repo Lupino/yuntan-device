@@ -269,6 +269,10 @@ saveMetricOne _ _ ("created_at", _) = return 0
 saveMetricOne _ _ ("updated_at", _) = return 0
 saveMetricOne _ _ ("timestamp", _) = return 0
 saveMetricOne _ _ ("time", _) = return 0
+saveMetricOne _ _ ("verified", _) = return 0
+saveMetricOne _ _ ("crc", _) = return 0
+saveMetricOne _ _ ("modbus", _) = return 0
+saveMetricOne _ _ ("modbus_state", _) = return 0
 saveMetricOne did createdAt (field, String "online") =
   RawAPI.saveMetric did (Key.toString field) "online" 1 createdAt
 saveMetricOne did createdAt (field, String "offline") =
