@@ -383,8 +383,9 @@ lookupEmqxUser EmqxAuthConfig {..} key token
             mdev <- getDevice False did
             case mdev of
               Nothing -> pure Nothing
-              Just dev  ->
-                if devKey dev == fromString key then
+              Just dev  -> do
+                dkey <- getDevKeyById (devKeyId dev)
+                if dkey == fromString key then
                   pure $ Just $ EmqxNormal $ devPoint dev
                 else
                   pure Nothing
