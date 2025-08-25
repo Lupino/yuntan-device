@@ -106,9 +106,10 @@ unCacheCards devid io = io $> remove redisEnv (genCardsKey devid)
 unCacheIndex:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheIndex devid io = io $> remove redisEnv (genIndexKey devid)
 
-getDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w (Maybe Device)
-getDevice devid = do
-  mdev <- cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
+getDevice :: (HasPSQL u, HasOtherEnv Cache u) => Bool -> DeviceID -> GenHaxl u w (Maybe Device)
+getDevice False devid = cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
+getDevice True devid = do
+  mdev <- getDevice False devid
   case mdev of
     Nothing -> pure Nothing
     Just dev -> do
@@ -195,7 +196,7 @@ updateDeviceMetaByUUID tp (UUID uuid) meta0 = do
   case devid of
     Nothing -> pure ()
     Just did -> do
-      mdev <- getDevice did
+      mdev <- getDevice False did
       case mdev of
         Nothing  -> pure ()
         Just dev -> for_ (decode meta) (updateDeviceMetaValue tp dev)

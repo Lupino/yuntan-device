@@ -70,7 +70,7 @@ apiDevice = do
     devid <- getDevId ident
     case devid of
       Nothing  -> pure Nothing
-      Just did -> getDevice did
+      Just did -> getDevice False did
 
 requireDevice :: (HasPSQL u, HasOtherEnv Cache u) => (Device -> ActionH u w ()) -> ActionH u w ()
 requireDevice next = do
@@ -103,7 +103,7 @@ createDeviceHandler allowKeys = do
       uuid <- liftIO $ UUID . toText <$> nextRandom
       addr <- lift randomAddr
       devid <- lift $ createDevice kid token addr uuid
-      json =<< lift (getDevice devid)
+      json =<< lift (getDevice True devid)
 
   else errBadRequest "key is invalid"
 
@@ -177,8 +177,9 @@ removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devKey = key} = do
 
 
 -- GET /api/devices/:ident/
-getDeviceHandler :: Device -> ActionH u w ()
-getDeviceHandler = ok "device"
+getDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
+getDeviceHandler Device { devID = did } = do
+  lift (getDevice True did) >>= ok "device"
 
 resultOK :: ActionH u w ()
 resultOK = ok "result" ("OK" :: String)
@@ -195,7 +196,7 @@ resultDeviceList getList count = do
   from <- From <$> safeQueryParam "from" 0
   size <- Size <$> safeQueryParam "size" 10
   total <- lift count
-  devices <- lift $ mapM getDevice =<< getList Page { pageFrom = from, pageSize = size, pageOrder = desc "id" }
+  devices <- lift $ mapM (getDevice True) =<< getList Page { pageFrom = from, pageSize = size, pageOrder = desc "id" }
 
   okListResult "devices" List
     { getFrom   = unFrom from
@@ -370,7 +371,7 @@ lookupEmqxUser EmqxAuthConfig {..} key token
         case mdid of
           Nothing -> pure Nothing
           Just did -> do
-            mdev <- getDevice did
+            mdev <- getDevice False did
             case mdev of
               Nothing -> pure Nothing
               Just dev  ->
