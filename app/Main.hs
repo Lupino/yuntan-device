@@ -118,7 +118,7 @@ program Options
 
   when dryRun exitSuccess
 
-  mqtt <- startMQTT (fromString prefix:allowKeys) mqttConfig $ \tp uuid bs ->
+  mqtt <- startMQTT allowKeys mqttConfig $ \tp uuid bs ->
     runIO0 $ updateDeviceMetaByUUID tp uuid bs
 
   scottyOptsT opts runIO0 (application mqtt emqxAuth authEnable authKey)
