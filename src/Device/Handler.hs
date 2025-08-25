@@ -51,8 +51,8 @@ import           Database.PSQL          (Column (..), From (..), HasOtherEnv,
 import           Device
 import           Device.Config          (Cache, EmqxAdminConfig (..),
                                          EmqxAuthConfig (..))
-import           Device.MQTT            (MqttEnv (mAllowKeys, mKey), cacheAble,
-                                         request, sendDrop)
+import           Device.MQTT            (MqttEnv (mKey), cacheAble, request,
+                                         sendDrop)
 import           Device.Util            (getEpochTime, parseIndexName)
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status400, status500)
@@ -176,12 +176,13 @@ getDeviceListHandler allowKeys = do
 
 -- DELETE /api/devices/:ident/
 removeDeviceHandler :: (HasPSQL u, HasOtherEnv Cache u) => MqttEnv -> Device -> ActionH u w ()
-removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devKey = key} = do
+removeDeviceHandler mqtt_ Device{devID = did, devUUID = uuid, devKeyId = keyId} = do
   void $ lift $ removeDevice did
-  liftIO $ sendDrop mqtt uuid
+  mk <- lift $ getDevKeyById keyId
+  case mk of
+    Nothing -> pure ()
+    Just k  -> liftIO $ sendDrop mqtt_ {mKey = k} uuid
   resultOK
-
-  where mqtt = if key `elem` mAllowKeys mqtt_ then mqtt_ {mKey = key} else mqtt_
 
 
 -- GET /api/devices/:ident/
@@ -214,21 +215,25 @@ resultDeviceList getList count = do
     }
 
 rpcHandler :: (HasPSQL u, Monoid w) => MqttEnv -> Device -> ActionH u w ()
-rpcHandler mqtt_ Device{devUUID = uuid, devKey = key} = do
+rpcHandler mqtt_ Device{devUUID = uuid, devKeyId = keyId} = do
   payload <- formParam "payload"
   tout <- min 300 <$> safeFormParam "timeout" 300
   cacheHash <- safeFormParam "cache-hash" ""
   cacheTimeout <- safeFormParam "cache-timeout" 10
-  let ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
-  r <- liftIO $ ca $ request mqtt uuid payload tout
-  case r of
-    Nothing -> err status500 "request timeout"
-    Just v  -> do
-      isjson <- safeFormParam "format" ("raw" :: String)
-      when (isjson == "json") $ addHeader "Content-Type" "application/json; charset=utf-8"
-      raw v
-
-  where mqtt = if key `elem` mAllowKeys mqtt_ then mqtt_ {mKey = key} else mqtt_
+  mk <- lift $ getDevKeyById keyId
+  case mk of
+    Nothing -> err status500 "invalid device"
+    Just k -> do
+      let mqtt = mqtt_ {mKey = k}
+          ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
+      r <- liftIO $ ca $ request mqtt uuid payload tout
+      case r of
+        Nothing -> err status500 "request timeout"
+        Just v  -> do
+          isjson <- safeFormParam "format" ("raw" :: String)
+          when (isjson == "json") $
+            addHeader "Content-Type" "application/json; charset=utf-8"
+          raw v
 
 
 -- POST /api/devices/:ident/metric/
@@ -384,11 +389,14 @@ lookupEmqxUser EmqxAuthConfig {..} key token
             case mdev of
               Nothing -> pure Nothing
               Just dev  -> do
-                dkey <- getDevKeyById (devKeyId dev)
-                if dkey == fromString key then
-                  pure $ Just $ EmqxNormal $ devPoint dev
-                else
-                  pure Nothing
+                mDkey <- getDevKeyById (devKeyId dev)
+                case mDkey of
+                  Nothing -> pure Nothing
+                  Just dk ->
+                    if dk == fromString key then
+                      pure $ Just $ EmqxNormal $ devPoint dk dev
+                    else
+                      pure Nothing
 
   where getEmqxAdmin :: [EmqxAdminConfig] -> Maybe EmqxAdminConfig
         getEmqxAdmin [] = Nothing
@@ -396,9 +404,9 @@ lookupEmqxUser EmqxAuthConfig {..} key token
           | emqxAdminKey x == key && emqxAdminPassword x == token = Just x
           | otherwise = getEmqxAdmin xs
 
-        devPoint :: Device -> EmqxMountPoint
-        devPoint Device {..} = EmqxMountPoint $ T.unpack $ "/" <> k <> "/" <> u
-          where k = unKey devKey
+        devPoint :: Key -> Device -> EmqxMountPoint
+        devPoint dk Device {..} = EmqxMountPoint $ T.unpack $ "/" <> k <> "/" <> u
+          where k = unKey dk
                 u = unUUID devUUID
 
 emqxAuthReqHandler

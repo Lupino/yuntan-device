@@ -46,7 +46,7 @@ import           Haxl.Core                hiding (env, fetchReq)
 data DeviceReq a where
   CreateTable :: DeviceReq Int64
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
-  GetDevKeyByID :: KeyID -> DeviceReq Key
+  GetDevKeyByID :: KeyID -> DeviceReq (Maybe Key)
 
   SaveMetric :: DeviceID -> String -> String -> Float -> CreatedAt -> DeviceReq Int64
   GetMetric :: MetricID -> DeviceReq (Maybe Metric)
@@ -171,9 +171,9 @@ fetchSync reqs@((BlockedFetch (GetDevKeyByID _) _):_) prefix pool = do
 
   where ids = [i | BlockedFetch (GetDevKeyByID i) _ <- reqs]
         putReq :: [(KeyID, Key)] -> BlockedFetch DeviceReq ->  IO ()
-        putReq [] (BlockedFetch (GetDevKeyByID _) rvar) = putSuccess rvar ""
+        putReq [] (BlockedFetch (GetDevKeyByID _) rvar) = putSuccess rvar Nothing
         putReq (x:xs) req@(BlockedFetch (GetDevKeyByID i) rvar)
-          | i == fst x = putSuccess rvar (snd x)
+          | i == fst x = putSuccess rvar (Just $ snd x)
           | otherwise = putReq xs req
 
         putReq _ _ = return ()

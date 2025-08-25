@@ -109,7 +109,7 @@ getDevKeyId (Key key) = do
     Nothing  -> KeyID <$> addOne deviceKeys ["devkey"] (Only key)
     Just kid -> pure $ KeyID kid
 
-getDevKeyById :: HasPSQL u => KeyID -> GenHaxl u w Key
+getDevKeyById :: HasPSQL u => KeyID -> GenHaxl u w (Maybe Key)
 getDevKeyById kid = dataFetch (GetDevKeyByID kid)
 
 getDevIdListByGw :: HasPSQL u => DeviceID -> Page -> GenHaxl u w [DeviceID]

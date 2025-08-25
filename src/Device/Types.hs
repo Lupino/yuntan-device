@@ -349,7 +349,7 @@ data Device = Device
   , devCards     :: [Card]
   , devIndex     :: [Index]
   , devPingAt    :: CreatedAt
-  , devKey       :: Key
+  , devKey       :: Maybe Key
   , devCreatedAt :: CreatedAt
   }
   deriving (Show)
@@ -366,7 +366,7 @@ instance FromRow Device where
     devCreatedAt <- field
     return Device
       { devPingAt = 0
-      , devKey = ""
+      , devKey = Nothing
       , devMetric = Null
       , devCards = []
       , devIndex = []
@@ -394,7 +394,7 @@ instance FromJSON Device where
   parseJSON = withObject "Device" $ \o -> do
     devID        <- o .: "id"
     devKeyId     <- o .: "key_id"
-    devKey       <- o .: "key"
+    devKey       <- o .:? "key"
     devToken     <- o .: "token"
     devUUID      <- o .: "uuid"
     devAddr      <- o .: "addr"
