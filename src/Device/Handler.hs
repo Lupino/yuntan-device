@@ -37,6 +37,7 @@ import           Control.Monad.Reader   (lift)
 import           Data.Aeson             (decode)
 import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
+import           Data.Char              (toUpper)
 import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
 import           Data.String            (fromString)
@@ -117,12 +118,19 @@ updateDeviceHandler field Device{devID = did} = do
   ret <- lift $ updateDevice did field value
   resultOKOrErr ret $ "update device " ++ unColumn field ++ " failed"
 
+
+parseBool :: String -> Bool
+parseBool v = map toUpper v == "TRUE"
+
 -- POST /api/devices/:ident/meta/
 updateDeviceMetaHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   meta <- formParam "meta"
+  replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
-    Just ev -> void (lift $ updateDeviceMeta did $ union ev ometa) >> resultOK
+    Just ev -> do
+      let newEv = if replaceMeta then ev else union ev ometa
+      void (lift $ updateDeviceMeta did newEv) >> resultOK
     Nothing -> errBadRequest "meta field is required."
 
 -- POST /api/devices/:ident/ping_at/
@@ -142,7 +150,7 @@ getDeviceListHandler allowKeys = do
   if T.length idents > 0 then do
     devices <- lift $ do
       ids <- catMaybes <$> mapM getDevId (T.splitOn "," idents)
-      catMaybes <$> mapM getDevice ids
+      catMaybes <$> mapM (getDevice True) ids
 
     okListResult "devices" List
       { getFrom   = 0
@@ -291,9 +299,10 @@ saveCardHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> Actio
 saveCardHandler Device{devID = did} = do
   field <- formParam "field"
   meta <- formParam "meta"
+  replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
     Just ev -> do
-      cardId <- lift $ saveCard did field ev
+      cardId <- lift $ saveCard replaceMeta did field ev
       json =<< lift (getCard cardId)
     Nothing -> errBadRequest "meta is required."
 

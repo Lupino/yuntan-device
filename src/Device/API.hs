@@ -300,13 +300,17 @@ getLastMetric did = cached' redisEnv (genMetricKey did) $ getLastMetric_ did
 
 saveCard
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> String -> Meta -> GenHaxl u w CardID
-saveCard did field meta = unCacheCards did $ do
+  => Bool -> DeviceID -> String -> Meta -> GenHaxl u w CardID
+saveCard replaceMeta did field meta = unCacheCards did $ do
   mCardId <- RawAPI.getCardId did field
   case mCardId of
       Nothing -> RawAPI.createCard did field meta
       Just cardId -> do
-        void $ RawAPI.updateCardMeta cardId meta
+        newMeta <- if replaceMeta then
+          pure meta
+        else
+          (`union` meta) . fromMaybe Null . fmap cardMeta <$> getCard cardId
+        void $ RawAPI.updateCardMeta cardId newMeta
         pure cardId
 
 removeCard
