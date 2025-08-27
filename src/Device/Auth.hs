@@ -94,6 +94,10 @@ instance ToJSON AuthInfo where
     ]
 
 
+allAuthIndexList :: AuthInfo -> [IndexName]
+allAuthIndexList AuthInfo {..} =
+  authIndexList ++ catMaybes [authManager, authUser]
+
 encodeJwt :: MonadRandom m => ByteString -> AuthInfo -> m (Either JwtError Jwt)
 encodeJwt key info = Jwt.encode [jwk]  (JwsEncoding HS256) (Claims . L.toStrict $ Aeson.encode info)
   where jwk = SymmetricJwk key Nothing Nothing Nothing
@@ -166,7 +170,7 @@ requirePerm True key next dev = do
   requireAuth key $ \authInfo ->
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) (next dev)
-    $ checkIndex (authIndexList authInfo ++ catMaybes [authManager authInfo, authUser authInfo]) next dev
+    $ checkIndex (allAuthIndexList authInfo) next dev
     $ checkDevId (authDevId authInfo) next dev
     noPermessions
 
@@ -203,7 +207,7 @@ requireIndexName True key next = do
   requireAuth key $ \authInfo ->
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) next
-    $ doCheckIndexName (authIndexList authInfo) names next
+    $ doCheckIndexName (allAuthIndexList authInfo) names next
     noPermessions
 
 doCheckIndexName :: [IndexName] -> [IndexName] -> ActionH u w () -> ActionH u w () -> ActionH u w ()
