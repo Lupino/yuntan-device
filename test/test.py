@@ -72,23 +72,23 @@ def remove_device(ident):
 def get_device(ident):
     return run_get("devices/{}/".format(ident))['device']
 
-def save_card(ident, field, meta = {}):
-    return run_post(f"devices/{ident}/cards/", {'meta': json.dumps(meta), 'field': field})
+def save_card(ident, param, meta = {}):
+    return run_post(f"devices/{ident}/cards/", {'meta': json.dumps(meta), 'param': param})
 
-def remove_card(ident, field):
-    return run_delete(f"devices/{ident}/cards/{field}/")
+def remove_card(ident, param):
+    return run_delete(f"devices/{ident}/cards/{param}/")
 
 def save_metric(ident, metric):
     return run_post(f"devices/{ident}/metric/", {'metric': json.dumps(metric)})
 
-def remove_metric(ident, field, mid):
-    return run_delete(f"devices/{ident}/metric/{field}/{mid}/")
+def remove_metric(ident, param, mid):
+    return run_delete(f"devices/{ident}/metric/{param}/{mid}/")
 
-def drop_metric(ident, field):
-    return run_delete(f"devices/{ident}/metric/{field}/")
+def drop_metric(ident, param):
+    return run_delete(f"devices/{ident}/metric/{param}/")
 
-def get_metric_list(ident, field, from_ = 0, size = 10, started_at = 0, ended_at = 0, sort='asc'):
-    return run_get(f"devices/{ident}/metric/{field}/", {
+def get_metric_list(ident, param, from_ = 0, size = 10, started_at = 0, ended_at = 0, sort='asc'):
+    return run_get(f"devices/{ident}/metric/{param}/", {
         'from': from_,
         'size': size,
         'started_at': started_at,
@@ -133,20 +133,20 @@ def update_attr_and_check(ident, attr, value):
 
 
 def test_cards(ident):
-    field = 'temperature'
+    param = 'temperature'
     meta = {'test': 'just a test'}
-    ret = save_card(ident, field, meta)
-    check_equal(ret['field'], field)
+    ret = save_card(ident, param, meta)
+    check_equal(ret['param'], param)
     check_equal(ret['meta'], meta, "test")
 
     device = get_device(ident)
     check_equal(len(device['cards']), 1)
     card = device['cards'][0]
 
-    check_equal(card['field'], field)
+    check_equal(card['param'], param)
     check_equal(card['meta'], meta, "test")
 
-    ret = remove_card(ident, field)
+    ret = remove_card(ident, param)
     check_equal(ret, {'result': 'OK'}, 'result')
 
     device = get_device(ident)

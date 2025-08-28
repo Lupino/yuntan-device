@@ -54,6 +54,7 @@ module Device.RawAPI
 import           Data.Int          (Int64)
 import           Data.Maybe        (catMaybes, listToMaybe)
 import           Data.Text         (Text)
+import qualified Data.Text         as T (unpack)
 import           Database.PSQL     (Action, Column, Columns, HasPSQL, Only (..),
                                     Page, TableName, ToRow (..), genAnd,
                                     genBetweenBy, genBy, genEq, genIn, genMaybe,
@@ -119,43 +120,47 @@ getDevIdListByGw gwid p =
 countDevAddrByGw :: HasPSQL u => DeviceID -> GenHaxl u w Int64
 countDevAddrByGw = countBy devices "gw_id = ?" . Only
 
-saveMetric :: HasPSQL u => DeviceID -> String -> String -> Float -> CreatedAt -> GenHaxl u w Int64
+saveMetric :: HasPSQL u => DeviceID -> Param -> String -> Float -> CreatedAt -> GenHaxl u w Int64
 saveMetric a b c d e = uncachedRequest (SaveMetric a b c d e)
 
 getMetric :: HasPSQL u => MetricID -> GenHaxl u w (Maybe Metric)
 getMetric a = dataFetch (GetMetric a)
 
-genGetMetricIdListQuery :: DeviceID -> String -> Int64 -> Int64 -> (String, [Action])
-genGetMetricIdListQuery did field startAt endAt = (q, a)
+
+genParamQuery :: Param -> (String, [Action])
+genParamQuery (Param param) = genBy (not . null) "param" $ T.unpack param
+
+genGetMetricIdListQuery :: DeviceID -> Param -> Int64 -> Int64 -> (String, [Action])
+genGetMetricIdListQuery did param startAt endAt = (q, a)
   where (q0, a0) = genEq "dev_id" did
-        (q1, a1) = genBy (not . null) "field" field
+        (q1, a1) = genParamQuery param
         (q2, a2) = genBetweenBy (> 0) "created_at" startAt endAt
 
         q = q0 `genAnd` q1 `genAnd` q2
         a = a0 ++ a1 ++ a2
 
 
-getMetricIdList :: HasPSQL u => DeviceID -> String -> Int64 -> Int64 -> Page -> GenHaxl u w [MetricID]
-getMetricIdList did field    startAt endAt p =
+getMetricIdList :: HasPSQL u => DeviceID -> Param -> Int64 -> Int64 -> Page -> GenHaxl u w [MetricID]
+getMetricIdList did param    startAt endAt p =
   map MetricID <$> getIdListBy metrics sql args p
-  where (sql, args) = genGetMetricIdListQuery did field startAt endAt
+  where (sql, args) = genGetMetricIdListQuery did param startAt endAt
 
-countMetric :: HasPSQL u => DeviceID -> String -> Int64 -> Int64 -> GenHaxl u w Int64
-countMetric did field    startAt endAt = countBy metrics sql args
-  where (sql, args) = genGetMetricIdListQuery did field startAt endAt
+countMetric :: HasPSQL u => DeviceID -> Param -> Int64 -> Int64 -> GenHaxl u w Int64
+countMetric did param    startAt endAt = countBy metrics sql args
+  where (sql, args) = genGetMetricIdListQuery did param startAt endAt
 
 removeMetric :: HasPSQL u => MetricID -> GenHaxl u w Int64
 removeMetric = removeBy metrics "id = ?" . Only
 
-dropMetric :: HasPSQL u => DeviceID -> String -> GenHaxl u w Int64
-dropMetric did field = removeBy metrics q a
+dropMetric :: HasPSQL u => DeviceID -> Param -> GenHaxl u w Int64
+dropMetric did param = removeBy metrics q a
   where (q0, a0) = genEq "dev_id" did
-        (q1, a1) = genBy (not . null) "field" field
+        (q1, a1) = genParamQuery param
 
         q = q0 `genAnd` q1
         a = a0 ++ a1
 
-getLastMetricIdList :: HasPSQL u => DeviceID -> GenHaxl u w [(String, MetricID)]
+getLastMetricIdList :: HasPSQL u => DeviceID -> GenHaxl u w [(Param, MetricID)]
 getLastMetricIdList a = dataFetch (GetLastMetricIdList a)
 
 createIndexName :: HasPSQL u => IndexName -> GenHaxl u w IndexNameId
@@ -201,17 +206,17 @@ countIndex nids mDid = countBy indexs q a
         q = q0 `genAnd` q1
         a = a0 ++ a1
 
-createCard :: HasPSQL u => DeviceID -> String -> Meta -> GenHaxl u w CardID
-createCard did field meta =
-  CardID <$> addOne cards ["dev_id", "field", "meta"] (did, field, meta)
+createCard :: HasPSQL u => DeviceID -> Param -> Meta -> GenHaxl u w CardID
+createCard did param meta =
+  CardID <$> addOne cards ["dev_id", "param", "meta"] (did, param, meta)
 
 updateCardMeta :: HasPSQL u => CardID -> Meta -> GenHaxl u w Int64
 updateCardMeta (CardID cid) meta =
   updateById cards cid ["meta"] (Only meta)
 
-getCardId :: HasPSQL u => DeviceID -> String -> GenHaxl u w (Maybe CardID)
-getCardId did field =
-  fmap CardID <$> getIdBy cards "dev_id = ? AND field = ?" (did, field)
+getCardId :: HasPSQL u => DeviceID -> Param -> GenHaxl u w (Maybe CardID)
+getCardId did param =
+  fmap CardID <$> getIdBy cards "dev_id = ? AND param = ?" (did, param)
 
 getCard :: HasPSQL u => CardID -> GenHaxl u w (Maybe Card)
 getCard a = dataFetch (GetCard a)

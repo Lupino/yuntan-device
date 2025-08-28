@@ -14,6 +14,7 @@ module Device.Types
 
   , MetricID (..)
   , Metric (..)
+  , Param (..)
 
   , IndexNameId (..)
   , IndexName (..)
@@ -335,6 +336,29 @@ instance FromJSON CardID where
 instance ToJSON CardID where
   toJSON (CardID k) = toJSON k
 
+
+newtype Param = Param {unParam :: Text}
+  deriving (Show, Eq, Ord)
+
+instance Hashable Param where
+  hashWithSalt s (Param v) = hashWithSalt s v
+
+
+instance ToField Param where
+  toField (Param k) = toField k
+
+instance FromField Param where
+  fromField f mv = Param <$> fromField f mv
+
+instance IsString Param where
+  fromString = Param . fromString
+
+instance FromJSON Param where
+  parseJSON = withText "Param" $ \t -> pure $ Param t
+
+instance ToJSON Param where
+  toJSON (Param k) = toJSON k
+
 type Meta      = Value
 
 data Device = Device
@@ -411,7 +435,7 @@ instance FromJSON Device where
 data Metric = Metric
   { metricId        :: MetricID
   , metricDevId     :: DeviceID
-  , metricField     :: String
+  , metricParam     :: Param
   , metricRawValue  :: String
   , metricValue     :: Float
   , metricCreatedAt :: CreatedAt
@@ -422,7 +446,7 @@ instance FromRow Metric where
   fromRow = do
     metricId <- field
     metricDevId <- field
-    metricField <- field
+    metricParam <- field
     metricRawValue <- field
     metricValue <- field
     metricCreatedAt <- field
@@ -432,7 +456,7 @@ instance ToJSON Metric where
   toJSON Metric {..} = object
     [ "id"         .= metricId
     , "dev_id"     .= metricDevId
-    , "field"      .= metricField
+    , "param"      .= metricParam
     , "raw_value"  .= metricRawValue
     , "value"      .= metricValue
     , "created_at" .= metricCreatedAt
@@ -450,7 +474,7 @@ instance FromJSON Metric where
   parseJSON = withObject "Metric" $ \o -> do
     metricId        <- o .: "id"
     metricDevId     <- o .: "dev_id"
-    metricField     <- o .: "field"
+    metricParam     <- o .: "param"
     rv              <- o .:? "raw_value"
     v               <- o .:? "value"
     metricCreatedAt <- o .: "created_at"
@@ -542,7 +566,7 @@ instance ToJSON EmqxUser where
 data Card = Card
   { cardID        :: CardID
   , cardDevId     :: DeviceID
-  , cardField     :: String
+  , cardParam     :: Param
   , cardMeta      :: Value
   , cardCreatedAt :: CreatedAt
   }
@@ -552,7 +576,7 @@ instance FromRow Card where
   fromRow = do
     cardID <- field
     cardDevId <- field
-    cardField <- field
+    cardParam <- field
     cardMeta <- fromMaybe Null <$> field
     cardCreatedAt <- field
     return Card { .. }
@@ -561,7 +585,7 @@ instance ToJSON Card where
   toJSON Card {..} = object
     [ "id"         .= cardID
     , "dev_id"     .= cardDevId
-    , "field"      .= cardField
+    , "param"      .= cardParam
     , "meta"       .= cardMeta
     , "created_at" .= cardCreatedAt
     ]
@@ -570,7 +594,7 @@ instance FromJSON Card where
   parseJSON = withObject "Card" $ \o -> do
     cardID        <- o .: "id"
     cardDevId     <- o .: "dev_id"
-    cardField     <- o .: "field"
+    cardParam     <- o .: "param"
     cardMeta      <- o .: "meta"
     cardCreatedAt <- o .: "created_at"
     return Card{..}

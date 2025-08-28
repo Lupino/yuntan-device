@@ -113,10 +113,10 @@ createDeviceHandler allowKeys = do
 -- POST /api/devices/:ident/addr/
 -- POST /api/devices/:ident/gw_id/
 updateDeviceHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Column -> Device -> ActionH u w ()
-updateDeviceHandler field Device{devID = did} = do
-  value <- formParam $ T.pack $ unColumn field
-  ret <- lift $ updateDevice did field value
-  resultOKOrErr ret $ "update device " ++ unColumn field ++ " failed"
+updateDeviceHandler col Device{devID = did} = do
+  value <- formParam $ T.pack $ unColumn col
+  ret <- lift $ updateDevice did col value
+  resultOKOrErr ret $ "update device " ++ unColumn col ++ " failed"
 
 
 parseBool :: String -> Bool
@@ -131,7 +131,7 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
     Just ev -> do
       let newEv = if replaceMeta then ev else union ev ometa
       void (lift $ updateDeviceMeta did newEv) >> resultOK
-    Nothing -> errBadRequest "meta field is required."
+    Nothing -> errBadRequest "meta is required."
 
 -- POST /api/devices/:ident/ping_at/
 updateDevicePingAtHandler :: (Monoid w, HasOtherEnv Cache u) => Device -> ActionH u w ()
@@ -247,10 +247,10 @@ saveMetricHandler Device{devID = did} = do
     Nothing -> errBadRequest "metric is required."
 
 
--- DELETE /api/devices/:ident/metric/:field/:mid/
+-- DELETE /api/devices/:ident/metric/:param/:mid/
 removeMetricHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 removeMetricHandler Device{devID = did} = do
-  field <- captureParam "field"
+  param <- Param <$> captureParam "param"
   mid <- MetricID <$> captureParam "mid"
 
   lift $ do
@@ -258,38 +258,38 @@ removeMetricHandler Device{devID = did} = do
     case mm of
       Nothing -> pure ()
       Just m  ->
-        when (metricField m == field && did == metricDevId m) $
+        when (metricParam m == param && did == metricDevId m) $
           void $ removeMetric did mid
 
   resultOK
 
--- DELETE /api/devices/:ident/metric/:field/
+-- DELETE /api/devices/:ident/metric/:param/
 dropMetricHandler :: (HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 dropMetricHandler Device{devID = did} = do
-  field <- captureParam "field"
+  param <- Param <$> captureParam "param"
 
   lift $
-    case field of
+    case param of
       "" -> pure ()
-      _  -> void $ dropMetric did field
+      _  -> void $ dropMetric did param
   resultOK
 
 
--- GET /api/devices/:ident/metric/:field/
+-- GET /api/devices/:ident/metric/:param/
 getMetricListHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 getMetricListHandler Device{devID = did} = do
   from <- From <$> safeQueryParam "from" 0
   size <- Size <$> safeQueryParam "size" 10
   startedAt <- safeQueryParam "started_at" 0
   endedAt <- safeQueryParam "ended_at" 0
-  field <- captureParam "field"
+  param <- Param <$> captureParam "param"
   s <- safeQueryParam "sort" ("asc" :: String)
 
   let sort = if s == "asc" then asc else desc
       page = Page { pageFrom = from, pageSize = size, pageOrder = sort "created_at" }
 
-  total <- lift $ countMetric did field startedAt endedAt
-  metrics <- lift $ mapM getMetric =<< getMetricIdList did field startedAt endedAt page
+  total <- lift $ countMetric did param startedAt endedAt
+  metrics <- lift $ mapM getMetric =<< getMetricIdList did param startedAt endedAt page
 
   okListResult "data" List
     { getFrom   = unFrom from
@@ -302,21 +302,21 @@ getMetricListHandler Device{devID = did} = do
 -- POST /api/devices/:ident/cards/
 saveCardHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 saveCardHandler Device{devID = did} = do
-  field <- formParam "field"
+  param <- Param <$> formParam "param"
   meta <- formParam "meta"
   replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
     Just ev -> do
-      cardId <- lift $ saveCard replaceMeta did field ev
+      cardId <- lift $ saveCard replaceMeta did param ev
       json =<< lift (getCard cardId)
     Nothing -> errBadRequest "meta is required."
 
 
--- DELETE /api/devices/:ident/cards/:field/
+-- DELETE /api/devices/:ident/cards/:param/
 removeCardHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
 removeCardHandler Device{devID = did} = do
-  field <- captureParam "field"
-  void $ lift $ removeCard did field
+  param <- Param <$> captureParam "param"
+  void $ lift $ removeCard did param
   resultOK
 
 

@@ -35,7 +35,7 @@ createMetricTable =
   PSQL.createTable "metrics"
     [ "id BIGSERIAL PRIMARY KEY"
     , "dev_id INT NOT NULL"
-    , "field VARCHAR(128) NOT NULL"
+    , "param VARCHAR(128) NOT NULL"
     , "raw_value VARCHAR(128) NOT NULL"
     , "value real NOT NULL"
     , "created_at INT NOT NULL"
@@ -66,7 +66,7 @@ createCardTable =
   PSQL.createTable "cards"
     [ "id SERIAL PRIMARY KEY"
     , "dev_id INT NOT NULL"
-    , "field VARCHAR(128) NOT NULL"
+    , "param VARCHAR(128) NOT NULL"
     , "meta JSON NOT NULL"
     , "created_at INT NOT NULL"
     ]
@@ -84,7 +84,7 @@ createTable =
     , createDeviceKeyTable
     , createIndex True "device_keys" "device_key_devkey" ["devkey"]
     , createMetricTable
-    , createIndex True "metrics" "metric_uniq_key" ["dev_id", "field", "created_at"]
+    , createIndex True "metrics" "metric_uniq_key" ["dev_id", "param", "created_at"]
 
     , createIndexNameTable
     , createIndex True "index_names" "index_name_uniq_key" ["name"]
@@ -92,5 +92,5 @@ createTable =
     , createIndex True "indexs" "index_uniq_key" ["name_id", "dev_id"]
 
     , createCardTable
-    , createIndex True "cards" "card_uniq_key" ["dev_id", "field"]
+    , createIndex True "cards" "card_uniq_key" ["dev_id", "param"]
     ]

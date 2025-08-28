@@ -33,7 +33,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson             (Value (..), decode, encode, object,
                                          (.=))
 import           Data.Aeson.Helper      (union)
-import qualified Data.Aeson.Key         as Key (Key, fromString, toString)
+import qualified Data.Aeson.Key         as Key (Key, fromText, toText)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, lookup,
                                                    member, toList)
 import           Data.ByteString        (ByteString)
@@ -231,7 +231,7 @@ removeMetric did = unCacheMetric did . RawAPI.removeMetric
 
 dropMetric
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> String -> GenHaxl u w Int64
+  => DeviceID -> Param -> GenHaxl u w Int64
 dropMetric did = unCacheMetric did . RawAPI.dropMetric did
 
 valueLookupTime :: Key.Key -> Value -> Maybe CreatedAt
@@ -261,6 +261,8 @@ saveMetricValue did createdAt (Array value) =
   sum <$> mapM (saveMetricValue did createdAt) value
 saveMetricValue _ _ _                        = return 0
 
+key2param :: Key.Key -> Param
+key2param = Param . Key.toText
 
 saveMetricOne :: HasPSQL u => DeviceID -> CreatedAt -> (Key.Key, Value) -> GenHaxl u w Int64
 saveMetricOne _ _ ("err", _) = return 0
@@ -273,29 +275,29 @@ saveMetricOne _ _ ("verified", _) = return 0
 saveMetricOne _ _ ("crc", _) = return 0
 saveMetricOne _ _ ("modbus", _) = return 0
 saveMetricOne _ _ ("modbus_state", _) = return 0
-saveMetricOne did createdAt (field, String "online") =
-  RawAPI.saveMetric did (Key.toString field) "online" 1 createdAt
-saveMetricOne did createdAt (field, String "offline") =
-  RawAPI.saveMetric did (Key.toString field) "offline" 0 createdAt
-saveMetricOne did createdAt (field, Number value) =
-  RawAPI.saveMetric did (Key.toString field) rv fv createdAt
+saveMetricOne did createdAt (param, String "online") =
+  RawAPI.saveMetric did (key2param param) "online" 1 createdAt
+saveMetricOne did createdAt (param, String "offline") =
+  RawAPI.saveMetric did (key2param param) "offline" 0 createdAt
+saveMetricOne did createdAt (param, Number value) =
+  RawAPI.saveMetric did (key2param param) rv fv createdAt
   where rv = show value
         fv = toRealFloat value
-saveMetricOne did createdAt (field, Bool True) =
-  RawAPI.saveMetric did (Key.toString field) "true" 1 createdAt
-saveMetricOne did createdAt (field, Bool False) =
-  RawAPI.saveMetric did (Key.toString field) "false" 0 createdAt
+saveMetricOne did createdAt (param, Bool True) =
+  RawAPI.saveMetric did (key2param param) "true" 1 createdAt
+saveMetricOne did createdAt (param, Bool False) =
+  RawAPI.saveMetric did (key2param param) "false" 0 createdAt
 saveMetricOne _ _ _ = return 0
 
 
 getLastMetric_ :: HasPSQL u => DeviceID -> GenHaxl u w Value
 getLastMetric_ did = do
   metrics <- RawAPI.getLastMetricIdList did
-  vals <- forM metrics $ \(field, mid) -> do
+  vals <- forM metrics $ \(Param param, mid) -> do
     metric <- RawAPI.getMetric mid
     case metric of
       Nothing -> return Null
-      Just m  -> return $ object [ Key.fromString field .= metricValue m ]
+      Just m  -> return $ object [ Key.fromText param .= metricValue m ]
   return $ foldl union Null vals
 
 getLastMetric :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
@@ -304,11 +306,11 @@ getLastMetric did = cached' redisEnv (genMetricKey did) $ getLastMetric_ did
 
 saveCard
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => Bool -> DeviceID -> String -> Meta -> GenHaxl u w CardID
-saveCard replaceMeta did field meta = unCacheCards did $ do
-  mCardId <- RawAPI.getCardId did field
+  => Bool -> DeviceID -> Param -> Meta -> GenHaxl u w CardID
+saveCard replaceMeta did param meta = unCacheCards did $ do
+  mCardId <- RawAPI.getCardId did param
   case mCardId of
-      Nothing -> RawAPI.createCard did field meta
+      Nothing -> RawAPI.createCard did param meta
       Just cardId -> do
         newMeta <- if replaceMeta then
           pure meta
@@ -319,9 +321,9 @@ saveCard replaceMeta did field meta = unCacheCards did $ do
 
 removeCard
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> String -> GenHaxl u w Int64
-removeCard did field = do
-  mCardId <- RawAPI.getCardId did field
+  => DeviceID -> Param -> GenHaxl u w Int64
+removeCard did param = do
+  mCardId <- RawAPI.getCardId did param
   case mCardId of
     Nothing     -> pure 0
     Just cardId -> unCacheCards did $ RawAPI.removeCard cardId

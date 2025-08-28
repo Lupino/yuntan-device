@@ -149,12 +149,12 @@ application mqtt mEmqxAuth authEnable authKey = do
   post "/api/devices/:ident/metric/"               $ rmd saveMetricHandler
   post "/api/devices/:ident/cards/"                $ rmd saveCardHandler
 
-  get "/api/devices/:ident/metric/:field/"         $ rdp getMetricListHandler
+  get "/api/devices/:ident/metric/:param/"         $ rdp getMetricListHandler
 
   delete "/api/devices/:ident/"                    $ rmd (removeDeviceHandler mqtt)
-  delete "/api/devices/:ident/metric/:field/"      $ rmd dropMetricHandler
-  delete "/api/devices/:ident/cards/:field/"       $ rmd removeCardHandler
-  delete "/api/devices/:ident/metric/:field/:mid/" $ rmd removeMetricHandler
+  delete "/api/devices/:ident/metric/:param/"      $ rmd dropMetricHandler
+  delete "/api/devices/:ident/cards/:param/"       $ rmd removeCardHandler
+  delete "/api/devices/:ident/metric/:param/:mid/" $ rmd removeMetricHandler
 
   post "/api/devices/:ident/index/"                $ rmd saveIndexHandler
   post "/api/devices/:ident/index/delete/"         $ rmd removeIndexHandler

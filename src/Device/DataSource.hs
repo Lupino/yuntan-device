@@ -48,9 +48,9 @@ data DeviceReq a where
   GetDevice :: DeviceID -> DeviceReq (Maybe Device)
   GetDevKeyByID :: KeyID -> DeviceReq (Maybe Key)
 
-  SaveMetric :: DeviceID -> String -> String -> Float -> CreatedAt -> DeviceReq Int64
+  SaveMetric :: DeviceID -> Param -> String -> Float -> CreatedAt -> DeviceReq Int64
   GetMetric :: MetricID -> DeviceReq (Maybe Metric)
-  GetLastMetricIdList :: DeviceID -> DeviceReq [(String, MetricID)]
+  GetLastMetricIdList :: DeviceID -> DeviceReq [(Param, MetricID)]
 
   SaveIndex :: IndexNameId -> DeviceID -> DeviceReq Int64
   GetIndexDevIdList :: [IndexNameId] -> Page -> DeviceReq [DeviceID]
@@ -201,13 +201,13 @@ fetchSync reqs@((BlockedFetch (GetLastMetricIdList _) _):_) prefix pool = do
 
   where ids = [i | BlockedFetch (GetLastMetricIdList i) _ <- reqs]
 
-        isSameDev :: (DeviceID, String, MetricID) -> (DeviceID, String, MetricID) -> Bool
+        isSameDev :: (DeviceID, Param, MetricID) -> (DeviceID, Param, MetricID) -> Bool
         isSameDev (x, _, _) (y, _, _) = x == y
 
-        rmDid :: (DeviceID, String, MetricID) -> (String, MetricID)
+        rmDid :: (DeviceID, Param, MetricID) -> (Param, MetricID)
         rmDid (_, x, y) = (x, y)
 
-        putReq :: [[(DeviceID, String, MetricID)]] -> BlockedFetch DeviceReq ->  IO ()
+        putReq :: [[(DeviceID, Param, MetricID)]] -> BlockedFetch DeviceReq ->  IO ()
         putReq [] (BlockedFetch (GetLastMetricIdList _) rvar) = putSuccess rvar []
         putReq ([]:xs) req = putReq xs req
         putReq (x@((did, _, _):_):xs) req@(BlockedFetch (GetLastMetricIdList i) rvar)
