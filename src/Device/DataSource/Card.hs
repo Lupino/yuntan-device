@@ -8,14 +8,18 @@ module Device.DataSource.Card
   ) where
 
 
-import           Database.PSQL (Only (..), PSQL, TableName, selectIn, selectOne)
+import           Database.PSQL (Columns, Only (..), PSQL, TableName, selectIn,
+                                selectOne)
 import           Device.Types
 
 cards :: TableName
 cards = "cards"
 
+columns :: Columns
+columns = ["id", "dev_id", "param", "meta", "created_at"]
+
 getCard :: CardID -> PSQL (Maybe Card)
-getCard mid = selectOne cards ["*"] "id = ?" (Only mid)
+getCard mid = selectOne cards columns "id = ?" (Only mid)
 
 getCardList :: [CardID] -> PSQL [Card]
-getCardList = selectIn cards ["*"] "id"
+getCardList = selectIn cards columns "id"

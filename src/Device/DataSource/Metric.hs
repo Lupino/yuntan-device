@@ -13,13 +13,23 @@ module Device.DataSource.Metric
 
 
 import           Data.Int      (Int64)
-import           Database.PSQL (Only (..), PSQL, TableName, group,
+import           Database.PSQL (Columns, Only (..), PSQL, TableName, group,
                                 insertOrUpdate, pageNone, selectAllRaw,
                                 selectIn, selectInRaw, selectOne)
 import           Device.Types
 
 metrics :: TableName
 metrics = "metrics"
+
+columns :: Columns
+columns =
+  [ "id"
+  , "dev_id"
+  , "param"
+  , "raw_value"
+  , "value"
+  , "created_at"
+  ]
 
 saveMetric :: DeviceID -> Param -> String -> Float -> CreatedAt -> PSQL Int64
 saveMetric did param rawValue value createdAt = do
@@ -29,10 +39,10 @@ saveMetric did param rawValue value createdAt = do
         valCols = ["raw_value", "value"]
 
 getMetric :: MetricID -> PSQL (Maybe Metric)
-getMetric mid = selectOne metrics ["*"] "id = ?" (Only mid)
+getMetric mid = selectOne metrics columns "id = ?" (Only mid)
 
 getMetricList :: [MetricID] -> PSQL [Metric]
-getMetricList = selectIn metrics ["*"] "id"
+getMetricList = selectIn metrics columns "id"
 
 getLastMetricIdList :: DeviceID -> PSQL [(Param, MetricID)]
 getLastMetricIdList did =
