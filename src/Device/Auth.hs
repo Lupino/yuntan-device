@@ -107,10 +107,10 @@ decodeJwt :: MonadRandom m => ByteString -> LT.Text -> m (Maybe AuthInfo)
 decodeJwt key bearerToken = do
   decoded <- Jwt.decode [jwk] (Just (JwsEncoding HS256)) token
   case decoded of
-    Left _              -> pure $ Nothing
+    Left _              -> pure Nothing
     Right (Jws (_, bs)) -> pure $ Aeson.decodeStrict bs
     Right (Jwe (_, bs)) -> pure $ Aeson.decodeStrict bs
-    Right (Unsecured _) -> pure $ Nothing
+    Right (Unsecured _) -> pure Nothing
 
   where jwk = SymmetricJwk key Nothing Nothing Nothing
         token = encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken

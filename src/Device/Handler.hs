@@ -129,7 +129,7 @@ updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
   replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
     Just ev -> do
-      let newEv = if replaceMeta then ev else union ev ometa
+      let newEv = if replaceMeta then ev else ev `union` ometa
       void (lift $ updateDeviceMeta did newEv) >> resultOK
     Nothing -> errBadRequest "meta is required."
 

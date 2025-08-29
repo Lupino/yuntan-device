@@ -30,8 +30,8 @@ module Device.API
 
 import           Control.Monad          (forM, unless, void)
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Aeson             (Value (..), decode, encode, object,
-                                         (.=))
+import           Data.Aeson             (Value (..), decode, decodeStrict,
+                                         encode, object, (.=))
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.Key         as Key (Key, fromText, toText)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, lookup,
@@ -64,7 +64,8 @@ import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, remove, set)
+import           Haxl.RedisCache        (cached, cached', get, hgetall, hset,
+                                         remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -218,12 +219,6 @@ getDevId ident
   | otherwise = getDevIdByCol "uuid" ident
 
 
-saveMetric
-  :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> CreatedAt -> Value -> GenHaxl u w Int64
-saveMetric did createdAt =
-  unCacheMetric did . saveMetricValue did createdAt
-
 removeMetric
   :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> MetricID -> GenHaxl u w Int64
@@ -250,21 +245,23 @@ getValueTime (x:xs) v =
     Nothing -> getValueTime xs v
 
 
-saveMetricValue
-  :: HasPSQL u
+saveMetric
+  :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> CreatedAt -> Value -> GenHaxl u w Int64
-saveMetricValue did createdAt (Object value) =
+saveMetric did createdAt (Object value) =
   sum <$> mapM (saveMetricOne did ct) (KeyMap.toList value)
   where keys = ["created_at", "updated_at", "timestamp", "time"]
         ct = fromMaybe createdAt $ getValueTime keys (Object value)
-saveMetricValue did createdAt (Array value) =
-  sum <$> mapM (saveMetricValue did createdAt) value
-saveMetricValue _ _ _                        = return 0
+saveMetric did createdAt (Array value) =
+  sum <$> mapM (saveMetric did createdAt) value
+saveMetric _ _ _                        = return 0
 
 key2param :: Key.Key -> Param
 key2param = Param . Key.toText
 
-saveMetricOne :: HasPSQL u => DeviceID -> CreatedAt -> (Key.Key, Value) -> GenHaxl u w Int64
+saveMetricOne
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> CreatedAt -> (Key.Key, Value) -> GenHaxl u w Int64
 saveMetricOne _ _ ("err", _) = return 0
 saveMetricOne _ _ ("error", _) = return 0
 saveMetricOne _ _ ("created_at", _) = return 0
@@ -289,19 +286,38 @@ saveMetricOne did createdAt (param, Bool False) =
   RawAPI.saveMetric did (key2param param) "false" 0 createdAt
 saveMetricOne _ _ _ = return 0
 
+saveMetricRaw
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> Param -> String -> Float -> CreatedAt -> GenHaxl u w Int64
+saveMetricRaw did param sval val ct = do
+  hset redisEnv k f val
+  RawAPI.saveMetric did param sval val ct
+  where k = genMetricKey did
+        f = encodeUtf8 (unParam param)
 
-getLastMetric_ :: HasPSQL u => DeviceID -> GenHaxl u w Value
+
+getLastMetric_ :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
 getLastMetric_ did = do
   metrics <- RawAPI.getLastMetricIdList did
   vals <- forM metrics $ \(Param param, mid) -> do
     metric <- RawAPI.getMetric mid
     case metric of
       Nothing -> return Null
-      Just m  -> return $ object [ Key.fromText param .= metricValue m ]
+      Just m  -> do
+        hset redisEnv k (encodeUtf8 param) (metricValue m)
+        return $ object [ Key.fromText param .= metricValue m ]
   return $ foldl union Null vals
 
+  where k = genMetricKey did
+
 getLastMetric :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
-getLastMetric did = cached' redisEnv (genMetricKey did) $ getLastMetric_ did
+getLastMetric did = do
+  values <- hgetall redisEnv (genMetricKey did)
+  if null values then getLastMetric_ did
+                 else return $ foldl union Null (map toValue values)
+
+  where toValue :: (ByteString, ByteString) -> Value
+        toValue (k, v) = object [ Key.fromText (decodeUtf8 k) .= fromMaybe Null (decodeStrict v) ]
 
 
 saveCard
@@ -315,7 +331,7 @@ saveCard replaceMeta did param meta = unCacheCards did $ do
         newMeta <- if replaceMeta then
           pure meta
         else
-          (`union` meta) . fromMaybe Null . fmap cardMeta <$> getCard cardId
+          (`union` meta) . maybe Null cardMeta <$> getCard cardId
         void $ RawAPI.updateCardMeta cardId newMeta
         pure cardId
 
