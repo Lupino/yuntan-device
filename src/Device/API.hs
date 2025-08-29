@@ -331,7 +331,7 @@ saveCard replaceMeta did param meta = unCacheCards did $ do
         newMeta <- if replaceMeta then
           pure meta
         else
-          (`union` meta) . maybe Null cardMeta <$> getCard cardId
+          (meta `union`) . maybe Null cardMeta <$> getCard cardId
         void $ RawAPI.updateCardMeta cardId newMeta
         pure cardId
 
