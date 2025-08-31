@@ -273,17 +273,17 @@ saveMetricOne _ _ ("crc", _) = return 0
 saveMetricOne _ _ ("modbus", _) = return 0
 saveMetricOne _ _ ("modbus_state", _) = return 0
 saveMetricOne did createdAt (param, String "online") =
-  RawAPI.saveMetric did (key2param param) "online" 1 createdAt
+  saveMetricRaw did (key2param param) "online" 1 createdAt
 saveMetricOne did createdAt (param, String "offline") =
-  RawAPI.saveMetric did (key2param param) "offline" 0 createdAt
+  saveMetricRaw did (key2param param) "offline" 0 createdAt
 saveMetricOne did createdAt (param, Number value) =
-  RawAPI.saveMetric did (key2param param) rv fv createdAt
+  saveMetricRaw did (key2param param) rv fv createdAt
   where rv = show value
         fv = toRealFloat value
 saveMetricOne did createdAt (param, Bool True) =
-  RawAPI.saveMetric did (key2param param) "true" 1 createdAt
+  saveMetricRaw did (key2param param) "true" 1 createdAt
 saveMetricOne did createdAt (param, Bool False) =
-  RawAPI.saveMetric did (key2param param) "false" 0 createdAt
+  saveMetricRaw did (key2param param) "false" 0 createdAt
 saveMetricOne _ _ _ = return 0
 
 saveMetricRaw
