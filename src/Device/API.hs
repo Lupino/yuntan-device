@@ -21,8 +21,6 @@ module Device.API
   , saveCard
   , removeCard
 
-  , runWithEnv
-
   , saveIndex
   , removeIndex
 
@@ -43,7 +41,7 @@ import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Foldable          (for_)
 import           Data.Int               (Int64)
-import           Data.Maybe             (fromMaybe)
+import           Data.Maybe             (fromMaybe, mapMaybe)
 import           Data.Scientific        (toRealFloat)
 import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
@@ -65,10 +63,9 @@ import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
-import           Haxl.Core              (Env (..), GenHaxl, env, initEnv,
-                                         withEnv)
-import           Haxl.RedisCache        (cached, cached', get, hgetall, hset,
-                                         remove, set)
+import           Haxl.Core              (GenHaxl)
+import           Haxl.RedisCache        (cached, cached', get, hdel, hgetall,
+                                         hset, remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -325,25 +322,25 @@ getLastMetric did = do
 
 saveCard
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => Bool -> DeviceID -> Param -> Meta -> GenHaxl u w CardID
-saveCard replaceMeta did param meta = unCacheCards did $ do
+  => Bool -> DeviceID -> Param -> Meta -> GenHaxl u w (Maybe Card)
+saveCard replaceMeta did param meta = do
   mCardId <- RawAPI.getCardId did param
   case mCardId of
-      Nothing -> RawAPI.createCard did param meta
+      Nothing -> do
+        cardId <- RawAPI.createCard did param meta
+        mCard <- getCard cardId
+        mapM_ cacheCard mCard
+        pure mCard
       Just cardId -> do
-        newMeta <- if replaceMeta then
-          pure meta
-        else
-          (meta `union`) . maybe Null cardMeta <$> getCard cardId
-        void $ RawAPI.updateCardMeta cardId newMeta
-        pure cardId
-
-runWithEnv :: Monoid w => GenHaxl u w a -> GenHaxl u w a
-runWithEnv io = do
-  state <- env states
-  uEnv <- env userEnv
-  env0 <- liftIO $ initEnv state uEnv
-  withEnv env0 io
+        mCard <- getCard cardId
+        case mCard of
+          Nothing -> pure Nothing
+          Just card -> do
+            let newMeta = if replaceMeta then meta else  meta `union` cardMeta card
+                newCard = card { cardMeta = newMeta }
+            void $ RawAPI.updateCardMeta cardId newMeta
+            cacheCard newCard
+            pure $ Just newCard
 
 removeCard
   :: (HasPSQL u, HasOtherEnv Cache u)
@@ -352,7 +349,12 @@ removeCard did param = do
   mCardId <- RawAPI.getCardId did param
   case mCardId of
     Nothing     -> pure 0
-    Just cardId -> unCacheCards did $ RawAPI.removeCard cardId
+    Just cardId -> do
+      hdel redisEnv k [f]
+      RawAPI.removeCard cardId
+  where k = genCardsKey did
+        f = encodeUtf8 $ unParam param
+
 
 dropCards
   :: (HasPSQL u, HasOtherEnv Cache u)
@@ -360,7 +362,22 @@ dropCards
 dropCards did = unCacheCards did $ RawAPI.dropCards did
 
 getCards :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w [Card]
-getCards did = cached' redisEnv (genCardsKey did) $ RawAPI.getCards did
+getCards did = do
+  values <- hgetall redisEnv (genCardsKey did)
+  if null values then getCardsAndCache did
+                 else return $ mapMaybe (decodeStrict . snd) values
+
+getCardsAndCache :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w [Card]
+getCardsAndCache did = do
+  cards <- RawAPI.getCards did
+  mapM_ cacheCard cards
+  return cards
+
+cacheCard :: HasOtherEnv Cache u => Card -> GenHaxl u w ()
+cacheCard card =
+  hset redisEnv k (encodeUtf8 param) card
+  where k = genCardsKey $ cardDevId card
+        param = unParam $ cardParam card
 
 saveIndex :: (HasPSQL u, HasOtherEnv Cache u) => IndexNameId -> DeviceID -> GenHaxl u w Int64
 saveIndex iid did = unCacheIndex did $ RawAPI.saveIndex iid did

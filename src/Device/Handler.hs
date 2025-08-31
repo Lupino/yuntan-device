@@ -307,8 +307,8 @@ saveCardHandler Device{devID = did} = do
   replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
     Just ev -> do
-      cardId <- lift $ saveCard replaceMeta did param ev
-      json =<< lift (runWithEnv $ getCard cardId)
+      mCard <- lift $ saveCard replaceMeta did param ev
+      json mCard
     Nothing -> errBadRequest "meta is required."
 
 
