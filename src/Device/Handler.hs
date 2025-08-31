@@ -308,7 +308,7 @@ saveCardHandler Device{devID = did} = do
   case decode meta of
     Just ev -> do
       cardId <- lift $ saveCard replaceMeta did param ev
-      json =<< lift (getCard cardId)
+      json =<< lift (runWithEnv $ getCard cardId)
     Nothing -> errBadRequest "meta is required."
 
 

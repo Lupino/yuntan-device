@@ -21,6 +21,8 @@ module Device.API
   , saveCard
   , removeCard
 
+  , runWithEnv
+
   , saveIndex
   , removeIndex
 
@@ -63,7 +65,8 @@ import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
 import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
-import           Haxl.Core              (GenHaxl)
+import           Haxl.Core              (Env (..), GenHaxl, env, initEnv,
+                                         withEnv)
 import           Haxl.RedisCache        (cached, cached', get, hgetall, hset,
                                          remove, set)
 import           System.Entropy         (getEntropy)
@@ -334,6 +337,13 @@ saveCard replaceMeta did param meta = unCacheCards did $ do
           (meta `union`) . maybe Null cardMeta <$> getCard cardId
         void $ RawAPI.updateCardMeta cardId newMeta
         pure cardId
+
+runWithEnv :: Monoid w => GenHaxl u w a -> GenHaxl u w a
+runWithEnv io = do
+  state <- env states
+  uEnv <- env userEnv
+  env0 <- liftIO $ initEnv state uEnv
+  withEnv env0 io
 
 removeCard
   :: (HasPSQL u, HasOtherEnv Cache u)
