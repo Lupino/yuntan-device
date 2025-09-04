@@ -18,6 +18,8 @@ module Device.API
   , removeMetric
   , dropMetric
 
+  , getMeta
+
   , saveCard
   , removeCard
 
@@ -30,8 +32,8 @@ module Device.API
 
 import           Control.Monad          (forM, unless, void)
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Aeson             (Value (..), decode, decodeStrict,
-                                         encode, object, (.=))
+import           Data.Aeson             (Value (..), decode, encode, object,
+                                         (.=))
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.Key         as Key (Key, fromText, toText)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, lookup,
@@ -41,7 +43,7 @@ import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
 import           Data.Foldable          (for_)
 import           Data.Int               (Int64)
-import           Data.Maybe             (fromMaybe, mapMaybe)
+import           Data.Maybe             (fromMaybe)
 import           Data.Scientific        (toRealFloat)
 import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
@@ -64,8 +66,8 @@ import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, hdel, hgetall,
-                                         hset, remove, set)
+import           Haxl.RedisCache        (cached, cached', get, hdel, hgetallKV,
+                                         hgetallV, hset, remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -95,6 +97,9 @@ genCardsKey (DeviceID devid) = fromString $ "cards:" ++ show devid
 genIndexKey :: DeviceID -> ByteString
 genIndexKey (DeviceID devid) = fromString $ "index:" ++ show devid
 
+genMetaKey :: DeviceID -> ByteString
+genMetaKey (DeviceID devid) = fromString $ "meta:" ++ show devid
+
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
 
@@ -106,6 +111,9 @@ unCacheCards devid io = io $> remove redisEnv (genCardsKey devid)
 
 unCacheIndex:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheIndex devid io = io $> remove redisEnv (genIndexKey devid)
+
+unCacheMeta:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
+unCacheMeta devid io = io $> remove redisEnv (genMetaKey devid)
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => Bool -> DeviceID -> GenHaxl u w (Maybe Device)
 getDevice False devid = cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
@@ -119,29 +127,60 @@ getDevice True devid = do
       pingAt <- getPingAt devid (devCreatedAt dev)
       key <- getDevKeyById (devKeyId dev)
       index <- getIndexList devid
+      meta <- getMeta devid
       pure $ Just dev
         { devPingAt = pingAt
         , devKey = key
         , devMetric = metric
         , devCards = cards
         , devIndex = index
+        , devMeta = meta
         }
 
 updateDeviceMeta
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> Meta -> GenHaxl u w Int64
-updateDeviceMeta devid = updateDevice devid "meta" . decodeUtf8 . LB.toStrict . encode
+  => DeviceID -> Bool -> Meta -> GenHaxl u w Int64
+updateDeviceMeta did True meta =
+  unCacheMeta did $ updateDeviceMetaRaw did meta
+updateDeviceMeta did False meta = do
+  newMeta <- (meta `union`) <$> getMeta did
+  cacheMeta did newMeta
+  updateDeviceMetaRaw did newMeta
+
+updateDeviceMetaRaw :: HasPSQL u => DeviceID -> Meta -> GenHaxl u w Int64
+updateDeviceMetaRaw did =
+  RawAPI.updateDevice did "meta" . decodeUtf8 . LB.toStrict . encode
 
 updateDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> Column -> Text -> GenHaxl u w Int64
 updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
 removeDevice devid = do
-  v0 <- unCacheDevice devid $ RawAPI.removeDevice devid
+  v0 <- unCacheDevice devid $ unCacheMeta devid $ RawAPI.removeDevice devid
   v1 <- dropMetric devid ""
   v2 <- RawAPI.removeIndex Nothing (Just devid)
   v3 <- dropCards devid
   return $ v0 + v1 + v2 + v3
+
+cacheMeta :: HasOtherEnv Cache u => DeviceID -> Meta -> GenHaxl u w ()
+cacheMeta did (Object kv) =
+  mapM_ (\(f, v) -> hset redisEnv k (k2b f) v) $ KeyMap.toList kv
+  where k = genMetaKey did
+        k2b = encodeUtf8 . Key.toText
+cacheMeta _ _ = pure ()
+
+getMeta :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Meta
+getMeta did = do
+  meta <- hgetallKV redisEnv (genMetaKey did)
+  case meta of
+    (Object _) -> pure meta
+    _ -> do
+      mdev <- RawAPI.getDevice did
+      case mdev of
+        Nothing -> pure meta
+        Just dev -> do
+          cacheMeta did $ devMeta dev
+          pure $ devMeta dev
 
 filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
@@ -163,12 +202,13 @@ online :: Value
 online = object [ "state" .= ("online" :: String) ]
 
 updateDeviceMetaValue :: (HasPSQL u, HasOtherEnv Cache u) => String -> Device -> Value -> GenHaxl u w ()
-updateDeviceMetaValue "ping" Device{devID=did, devMeta=ometa} _ = do
+updateDeviceMetaValue "ping" Device{devID=did} _ = do
   ct <- getEpochTime
+  ometa <- getMeta did
   case valueLookup "state" ometa of
     Just (String "online") -> pure ()
     _ -> do
-      void $ updateDeviceMeta did (online `union` ometa)
+      void $ updateDeviceMeta did False (online `union` ometa)
       void $ saveMetric did ct online
 
   setPingAt did ct
@@ -178,17 +218,20 @@ updateDeviceMetaValue "telemetry" Device{devID=did} v = do
   void $ saveMetric did ct v
   setPingAt did ct
 
-updateDeviceMetaValue tp Device{devID=did, devMeta=ometa} v = do
+updateDeviceMetaValue tp Device{devID=did} v = do
   ct <- getEpochTime
+  ometa <- getMeta did
   void $ saveMetric did ct v
   unless (valueMember "err" v) $ do
-    unless (nv == ometa) $ void $ updateDeviceMeta did nv
+    let nv = merge ometa
+    unless (nv == ometa) $ void $ updateDeviceMeta did False nv
     unless (valueMember "addr" v) $ do
       setPingAt did ct
 
-  where nv = union (filterMeta force v ometa)
-           $ if valueMember "addr" v then ometa
-                                     else online `union` ometa
+  where merge ometa =
+          union (filterMeta force v ometa)
+          $ if valueMember "addr" v then ometa
+                                    else online `union` ometa
         force = tp == "attributes"
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => String -> UUID -> LB.ByteString -> GenHaxl u w ()
@@ -312,12 +355,9 @@ getLastMetric_ did = do
 
 getLastMetric :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Value
 getLastMetric did = do
-  values <- hgetall redisEnv (genMetricKey did)
-  if null values then getLastMetric_ did
-                 else return $ foldl union Null (map toValue values)
-
-  where toValue :: (ByteString, ByteString) -> Value
-        toValue (k, v) = object [ Key.fromText (decodeUtf8 k) .= fromMaybe Null (decodeStrict v) ]
+  value <- hgetallKV redisEnv (genMetricKey did)
+  if value == Null then getLastMetric_ did
+                   else pure value
 
 
 saveCard
@@ -363,9 +403,9 @@ dropCards did = unCacheCards did $ RawAPI.dropCards did
 
 getCards :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w [Card]
 getCards did = do
-  values <- hgetall redisEnv (genCardsKey did)
-  if null values then getCardsAndCache did
-                 else return $ mapMaybe (decodeStrict . snd) values
+  cards <- hgetallV redisEnv (genCardsKey did)
+  if null cards then getCardsAndCache did
+                else pure cards
 
 getCardsAndCache :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w [Card]
 getCardsAndCache did = do

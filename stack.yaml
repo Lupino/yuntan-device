@@ -37,6 +37,7 @@ resolver: lts-24.8
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
+- /Users/lmj/yuntan/packages/yuntan-common/rediscaching-haxl
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
@@ -45,7 +46,7 @@ extra-deps:
 - git: https://github.com/facebook/Haxl.git
   commit: 037506e2f082c9b9bab3a473ef117fe0fdc1e35f
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: 75a11e0dbce4ce7a7c29ff5b87944b4c7dfb80af
+  commit: aac24709416eea4f8e6f5f7ff102391149cb8fc5
   subdirs:
   - psql-utils
   - aeson-result

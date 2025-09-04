@@ -35,7 +35,6 @@ import           Control.Monad          (void, when)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader   (lift)
 import           Data.Aeson             (decode)
-import           Data.Aeson.Helper      (union)
 import           Data.Aeson.Result      (List (..))
 import           Data.Char              (toUpper)
 import           Data.Int               (Int64)
@@ -124,13 +123,11 @@ parseBool v = map toUpper v == "TRUE"
 
 -- POST /api/devices/:ident/meta/
 updateDeviceMetaHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
-updateDeviceMetaHandler Device{devID = did, devMeta = ometa} = do
+updateDeviceMetaHandler Device{devID = did} = do
   meta <- formParam "meta"
   replaceMeta <- parseBool <$> safeFormParam "replace" "false"
   case decode meta of
-    Just ev -> do
-      let newEv = if replaceMeta then ev else ev `union` ometa
-      void (lift $ updateDeviceMeta did newEv) >> resultOK
+    Just ev -> void (lift $ updateDeviceMeta did replaceMeta ev) >> resultOK
     Nothing -> errBadRequest "meta is required."
 
 -- POST /api/devices/:ident/ping_at/
