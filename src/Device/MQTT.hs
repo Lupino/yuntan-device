@@ -15,7 +15,7 @@ import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Concurrent.STM (TVar, atomically, newTVarIO,
                                          readTVarIO, retry, writeTVar)
 import           Control.Exception      (SomeException, try)
-import           Control.Monad          (forever, void)
+import           Control.Monad          (forever, unless, void)
 import qualified Data.ByteString.Char8  as B (unpack)
 import           Data.ByteString.Lazy   (ByteString)
 import           Data.Cache             (Cache (..), newCache)
@@ -160,9 +160,10 @@ messageCallback saveMetric resCache c topic payload _ =
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:_:uuid:"attributes":_) -> do
-      saveMetric "attributes" (UUID uuid) payload
-      publish c topic "" True
+    (_:_:uuid:"attributes":_) ->
+      unless (payload == "") $ do
+        saveMetric "attributes" (UUID uuid) payload
+        publish c topic "" True
     (_:_:uuid:"telemetry":_)  -> saveMetric "telemetry" (UUID uuid) payload
     (_:_:uuid:"ping":_)       -> saveMetric "ping" (UUID uuid) online
     _ -> pure ()
