@@ -146,7 +146,7 @@ cacheAble MqttEnv {..} h t io = do
 messageCallback
   :: SaveMetric
   -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
-messageCallback saveMetric resCache _ topic payload _ =
+messageCallback saveMetric resCache c topic payload _ =
   case splitOn "/" (unTopic topic) of
     (_:_:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
@@ -160,7 +160,9 @@ messageCallback saveMetric resCache _ topic payload _ =
         case r of
           Nothing -> pure ()
           Just _  -> Cache.insertSTM k (Just payload) resCache t
-    (_:_:uuid:"attributes":_) -> saveMetric "attributes" (UUID uuid) payload
+    (_:_:uuid:"attributes":_) -> do
+      saveMetric "attributes" (UUID uuid) payload
+      publish c topic "" True
     (_:_:uuid:"telemetry":_)  -> saveMetric "telemetry" (UUID uuid) payload
     (_:_:uuid:"ping":_)       -> saveMetric "ping" (UUID uuid) online
     _ -> pure ()
