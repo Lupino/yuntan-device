@@ -66,8 +66,8 @@ import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, hdel, hgetallKV,
-                                         hgetallV, hset, remove, set)
+import           Haxl.RedisCache        (cached, cached', get, hdel, hget,
+                                         hgetallKV, hgetallV, hset, remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -333,8 +333,12 @@ saveMetricRaw
   :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> Param -> String -> Float -> CreatedAt -> GenHaxl u w Int64
 saveMetricRaw did param sval val ct = do
-  hset redisEnv k f val
-  RawAPI.saveMetric did param sval val ct
+  oval <- hget redisEnv k f
+  if oval == Just val then
+    pure 0
+  else do
+    hset redisEnv k f val
+    RawAPI.saveMetric did param sval val ct
   where k = genMetricKey did
         f = encodeUtf8 (unParam param)
 
