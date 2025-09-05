@@ -37,7 +37,7 @@ import           Data.Aeson             (Value (..), decode, encode, object,
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.Key         as Key (Key, fromText, toText)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, lookup,
-                                                   member, toList)
+                                                   member, null, toList)
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Base16 as B16 (encode)
 import qualified Data.ByteString.Lazy   as LB (ByteString, fromStrict, toStrict)
@@ -143,9 +143,18 @@ updateDeviceMeta
 updateDeviceMeta did True meta =
   unCacheMeta did $ updateDeviceMetaRaw did meta
 updateDeviceMeta did False meta = do
-  newMeta <- (meta `union`) <$> getMeta did
-  cacheMeta did newMeta
-  updateDeviceMetaRaw did newMeta
+  ometa <- getMeta did
+  let newMeta = meta `union` ometa
+      diff = diffMeta newMeta ometa
+
+  case diff of
+    Object hv -> do
+      if KeyMap.null hv then
+        pure 0
+      else do
+        cacheMeta did diff
+        updateDeviceMetaRaw did newMeta
+    _ -> pure 0
 
 updateDeviceMetaRaw :: HasPSQL u => DeviceID -> Meta -> GenHaxl u w Int64
 updateDeviceMetaRaw did =
@@ -163,7 +172,7 @@ removeDevice devid = do
   return $ v0 + v1 + v2 + v3
 
 cacheMeta :: HasOtherEnv Cache u => DeviceID -> Meta -> GenHaxl u w ()
-cacheMeta did (Object kv) =
+cacheMeta did (Object kv) = do
   mapM_ (\(f, v) -> hset redisEnv k (k2b f) v) $ KeyMap.toList kv
   where k = genMetaKey did
         k2b = encodeUtf8 . Key.toText
@@ -186,6 +195,16 @@ filterMeta :: Bool -> Value -> Value -> Value
 filterMeta False (Object nv) (Object ov) = Object $ KeyMap.filterWithKey (\k _ -> KeyMap.member k ov) nv
 filterMeta _ nv _ = nv
 
+diffMeta :: Value -> Value -> Value
+diffMeta (Object nv) (Object ov) = Object $ KeyMap.filterWithKey isNotMatch nv
+  where isNotMatch :: Key.Key -> Value -> Bool
+        isNotMatch k v0 =
+          case KeyMap.lookup k ov of
+            Just v1 -> v0 /= v1
+            Nothing -> True
+
+diffMeta nv _ = nv
+
 getEpochTime :: GenHaxl u w CreatedAt
 getEpochTime = CreatedAt <$> Util.getEpochTime
 
@@ -204,12 +223,8 @@ online = object [ "state" .= ("online" :: String) ]
 updateDeviceMetaValue :: (HasPSQL u, HasOtherEnv Cache u) => String -> Device -> Value -> GenHaxl u w ()
 updateDeviceMetaValue "ping" Device{devID=did} _ = do
   ct <- getEpochTime
-  ometa <- getMeta did
-  case valueLookup "state" ometa of
-    Just (String "online") -> pure ()
-    _ -> do
-      void $ updateDeviceMeta did False (online `union` ometa)
-      void $ saveMetric did ct online
+  void $ updateDeviceMeta did False online
+  void $ saveMetric did ct online
 
   setPingAt did ct
 
@@ -220,18 +235,13 @@ updateDeviceMetaValue "telemetry" Device{devID=did} v = do
 
 updateDeviceMetaValue tp Device{devID=did} v = do
   ct <- getEpochTime
-  ometa <- getMeta did
   void $ saveMetric did ct v
   unless (valueMember "err" v) $ do
-    let nv = merge ometa
-    unless (nv == ometa) $ void $ updateDeviceMeta did False nv
-    unless (valueMember "addr" v) $ do
-      setPingAt did ct
+    nv <- merge <$> getMeta did
+    void $ updateDeviceMeta did False nv
+    setPingAt did ct
 
-  where merge ometa =
-          union (filterMeta force v ometa)
-          $ if valueMember "addr" v then ometa
-                                    else online `union` ometa
+  where merge ometa = filterMeta force v ometa `union` online `union` ometa
         force = tp == "attributes"
 
 updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => String -> UUID -> LB.ByteString -> GenHaxl u w ()
