@@ -168,6 +168,7 @@ application mqtt mEmqxAuth authEnable authKey = do
       post "/mqtt/acl" emqxAclReqHandler
       post "/mqtt/superuser" emqxSuperReqHandler
       post "/mqtt/auth" $ emqxAuthReqHandler emqxAuth
+      post "/emqx5/auth" $ emqx5AuthReqHandler emqxAuth
 
   where allowKeys = mAllowKeys mqtt
         requireAdmin = Auth.requireAdmin authEnable authKey

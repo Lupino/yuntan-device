@@ -29,12 +29,13 @@ module Device.Handler
   , emqxAclReqHandler
   , emqxSuperReqHandler
   , emqxAuthReqHandler
+  , emqx5AuthReqHandler
   ) where
 
 import           Control.Monad          (void, when)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader   (lift)
-import           Data.Aeson             (decode)
+import           Data.Aeson             (decode, object, (.=))
 import           Data.Aeson.Result      (List (..))
 import           Data.Char              (toUpper)
 import           Data.Int               (Int64)
@@ -57,7 +58,7 @@ import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status400, status500)
 import           Web.Scotty.Haxl        (ActionH)
 import           Web.Scotty.Trans       (addHeader, captureParam, formParam,
-                                         json, raw, text)
+                                         json, jsonData, raw, text)
 import           Web.Scotty.Utils       (err, errBadRequest, errNotFound, ok,
                                          okListResult, safeFormParam,
                                          safeQueryParam)
@@ -390,7 +391,7 @@ lookupEmqxUser EmqxAuthConfig {..} key token
                 case mDkey of
                   Nothing -> pure Nothing
                   Just dk ->
-                    if dk == fromString key then
+                    if dk == fromString key || devAddr dev == fromString key then
                       pure $ Just $ EmqxNormal $ devPoint dk dev
                     else
                       pure Nothing
@@ -416,3 +417,62 @@ emqxAuthReqHandler config = do
   case r of
     Nothing -> err status400 "no auth"
     Just u  -> json u
+
+emqx5AuthReqHandler
+  :: (Monoid w, HasPSQL u, HasOtherEnv Cache u)
+  => EmqxAuthConfig -> ActionH u w ()
+emqx5AuthReqHandler config = do
+  Emqx5Auth {..} <- jsonData
+  r <- lookupEmqxUser config emqx5Username emqx5Passwd
+  case r of
+    Nothing -> json $ object [ "result" .= ("ignore" :: String) ]
+    Just EmqxSuperAdmin  -> json $ object
+      [ "result" .= ("allow" :: String)
+      , "is_superuser'" .= True
+      ]
+
+    Just (EmqxAdmin (EmqxMountPoint p))  -> json $ object
+      [ "result" .= ("allow" :: String)
+      , "is_superuser'" .= False
+      , "acl" .=
+        [ object
+          [ "permission" .= ("allow" :: String)
+          , "action" .= ("all" :: String)
+          , "topic" .= (p ++ "/#")
+          ]
+        , object
+          [ "permission" .= ("allow" :: String)
+          , "action" .= ("publish" :: String)
+          , "topic" .= (p ++ "/+/attributes")
+          , "retain'" .= True
+          ]
+        , object
+          [ "permission" .= ("deny" :: String)
+          , "action" .= ("all" :: String)
+          , "topic" .= ("#" :: String)
+          ]
+        ]
+      ]
+
+    Just (EmqxNormal (EmqxMountPoint p))  -> json $ object
+      [ "result" .= ("allow" :: String)
+      , "is_superuser'" .= False
+      , "acl" .=
+        [ object
+          [ "permission" .= ("allow" :: String)
+          , "action" .= ("all" :: String)
+          , "topic" .= (p ++ "/#")
+          ]
+        , object
+          [ "permission" .= ("allow" :: String)
+          , "action" .= ("publish" :: String)
+          , "topic" .= (p ++ "/attributes")
+          , "retain'" .= True
+          ]
+        , object
+          [ "permission" .= ("deny" :: String)
+          , "action" .= ("all" :: String)
+          , "topic" .= ("#" :: String)
+          ]
+        ]
+      ]

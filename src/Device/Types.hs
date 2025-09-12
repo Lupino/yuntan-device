@@ -23,6 +23,7 @@ module Device.Types
   , Card (..)
   , CardID (..)
 
+  , Emqx5Auth (..)
   , EmqxUser (..)
   , EmqxMountPoint (..)
   ) where
@@ -551,6 +552,17 @@ newtype EmqxMountPoint = EmqxMountPoint String deriving (Show)
 
 instance ToJSON EmqxMountPoint where
   toJSON (EmqxMountPoint uuid) = object [ "mountpoint" .= uuid ]
+
+data Emqx5Auth = Emqx5Auth
+  { emqx5Username :: String
+  , emqx5Passwd   :: String
+  } deriving (Show)
+
+instance FromJSON Emqx5Auth where
+  parseJSON = withObject "Emqx5Auth" $ \o -> do
+    emqx5Username <- o .: "username"
+    emqx5Passwd   <- o .: "password"
+    return Emqx5Auth{..}
 
 data EmqxUser = EmqxSuperAdmin
     | EmqxAdmin EmqxMountPoint
