@@ -87,10 +87,10 @@ program Options
 
   (Right conf) <- Y.decodeFileEither confFile
 
-  let psqlConfig  = C.psqlConfig conf
-      psqlThreads = C.psqlHaxlNumThreads psqlConfig
+  let psqlConfig   = C.psqlConfig conf
+      psqlMaxPool  = C.psqlPoolMaxResources psqlConfig
       redisConfig  = C.redisConfig conf
-      redisThreads = C.redisHaxlNumThreads redisConfig
+      redisMaxConn = C.redisMaxConnections redisConfig
 
       mqttConfig   = C.mqttConfig conf
       emqxAuth     = C.emqxAuth conf
@@ -103,8 +103,8 @@ program Options
   redis <- C.genRedisConnection redisConfig
 
   let u = simpleEnv pool (fromString prefix) $ C.mkCache redis
-      s = stateSet (initRedisState redisThreads $ fromString prefix)
-        $ stateSet (initDeviceState psqlThreads $ fromString prefix)
+      s = stateSet (initRedisState redisMaxConn $ fromString prefix)
+        $ stateSet (initDeviceState psqlMaxPool $ fromString prefix)
         stateEmpty
       runIO0 = runIO u s
 
