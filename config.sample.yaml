@@ -1,12 +1,11 @@
+max_qps: 100
+
 psql:
   db: yuntan_device
   host: 127.0.0.1
   port: 5432
   user: postgres
   pass: ""
-  numStripes: 10
-  # ^ The number of stripes (distinct sub-pools) to maintain.
-  # The smallest acceptable value is 1.
   idleTime: 500
   # ^ Amount of time for which an unused resource is kept alive.
   # The smallest acceptable value is 0.5 seconds.
@@ -21,9 +20,6 @@ psql:
   # single stripe, even if other stripes have idle resources
   # available.
 
-  numThreads: 10
-  # numThreads of fetch async for haxl
-
 redis:
   db: 0
   host: redis
@@ -31,7 +27,6 @@ redis:
   enable: false
   maxConnections: 50
   idleTime: 30
-  numThreads: 50
 
 # emqx_auth:
 #   superadmin: superadmin

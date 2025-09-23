@@ -5,6 +5,8 @@ module Main
   ( main
   ) where
 
+import           Control.Concurrent.QSem
+import qualified Control.Exception                    as CE (bracket_)
 import           Control.Monad                        (void, when)
 import           Data.ByteString                      (ByteString)
 import           Data.Default.Class                   (def)
@@ -97,7 +99,9 @@ program Options
       allowKeys    = C.allowKeys conf
       authEnable   = C.authEnable conf
       authKey      = C.authKey conf
+      qps          = C.maxQPS conf
 
+  sem <- newQSem qps
 
   pool <- C.genPSQLPool psqlConfig
   redis <- C.genRedisConnection redisConfig
@@ -106,7 +110,7 @@ program Options
       s = stateSet (initRedisState redisMaxConn $ fromString prefix)
         $ stateSet (initDeviceState psqlMaxPool $ fromString prefix)
         stateEmpty
-      runIO0 = runIO u s
+      runIO0 = CE.bracket_ (waitQSem sem) (signalQSem sem) . runIO u s
 
       opts = def
         { settings = setPort port

@@ -61,6 +61,7 @@ data Config = Config
   , emqxAuth    :: Maybe EmqxAuthConfig
   , authEnable  :: Bool
   , authKey     :: ByteString
+  , maxQPS      :: Int
   }
   deriving (Show)
 
@@ -73,6 +74,7 @@ instance FromJSON Config where
     emqxAuth <- o .:? "emqx_auth"
     authEnable <- o .:? "auth_enable" .!= False
     authKey <- fromString <$> o .:? "auth_key" .!= ""
+    maxQPS <- o .:? "max_qps" .!= 100
     case parseURI mqtt of
       Nothing         -> fail "invalid mqtt uri"
       Just mqttConfig -> return Config{..}
