@@ -100,6 +100,7 @@ program Options
       authEnable   = C.authEnable conf
       authKey      = C.authKey conf
       qps          = C.maxQPS conf
+      attrToMeta   = C.attrToMeta conf
 
   sem <- newQSem qps
 
@@ -123,7 +124,7 @@ program Options
   when dryRun exitSuccess
 
   mqtt <- startMQTT allowKeys mqttConfig $ \tp uuid bs ->
-    runIO0 $ updateDeviceMetaByUUID tp uuid bs
+    runIO0 $ updateMetric attrToMeta tp uuid bs
 
   scottyOptsT opts runIO0 (application mqtt emqxAuth authEnable authKey)
   where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b

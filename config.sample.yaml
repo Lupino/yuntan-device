@@ -1,4 +1,8 @@
 max_qps: 100
+# Max QPS of API
+
+attr_to_meta: true
+# ^ Save attribute to device meta
 
 psql:
   db: yuntan_device

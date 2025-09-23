@@ -7,7 +7,7 @@ module Device.API
   , updateDeviceMeta
   , updateDevice
   , removeDevice
-  , updateDeviceMetaByUUID
+  , updateMetric
 
   , getDevId
   , randomAddr
@@ -30,7 +30,7 @@ module Device.API
   ) where
 
 
-import           Control.Monad          (forM, unless, void)
+import           Control.Monad          (forM, unless, void, when)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson             (Value (..), decode, encode, object,
                                          (.=))
@@ -220,32 +220,34 @@ valueMember _ _             = False
 online :: Value
 online = object [ "state" .= ("online" :: String) ]
 
-updateDeviceMetaValue :: (HasPSQL u, HasOtherEnv Cache u) => String -> Device -> Value -> GenHaxl u w ()
-updateDeviceMetaValue "ping" Device{devID=did} _ = do
+updateMetric_
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => Bool -> String -> Device -> Value -> GenHaxl u w ()
+updateMetric_ toMeta "ping" Device{devID=did} _ = do
   ct <- getEpochTime
-  void $ updateDeviceMeta did False online
+  when toMeta $ void $ updateDeviceMeta did False online
   void $ saveMetric did ct online
-
   setPingAt did ct
 
-updateDeviceMetaValue "telemetry" Device{devID=did} v = do
+updateMetric_ _ "telemetry" Device{devID=did} v = do
   ct <- getEpochTime
   void $ saveMetric did ct v
   setPingAt did ct
 
-updateDeviceMetaValue tp Device{devID=did} v = do
-  ct <- getEpochTime
-  void $ saveMetric did ct v
+updateMetric_ toMeta tp Device{devID=did} v =
   unless (valueMember "err" v) $ do
-    nv <- merge <$> getMeta did
-    void $ updateDeviceMeta did False nv
+    ct <- getEpochTime
+    void $ saveMetric did ct v
     setPingAt did ct
+    when toMeta $ do
+      nv <- merge <$> getMeta did
+      void $ updateDeviceMeta did False nv
 
   where merge ometa = filterMeta force v ometa `union` online `union` ometa
         force = tp == "attributes"
 
-updateDeviceMetaByUUID :: (HasPSQL u, HasOtherEnv Cache u) => String -> UUID -> LB.ByteString -> GenHaxl u w ()
-updateDeviceMetaByUUID tp (UUID uuid) meta0 = do
+updateMetric :: (HasPSQL u, HasOtherEnv Cache u) => Bool -> String -> UUID -> LB.ByteString -> GenHaxl u w ()
+updateMetric toMeta tp (UUID uuid) meta0 = do
   devid <- getDevIdByCol "uuid" uuid
   case devid of
     Nothing -> pure ()
@@ -253,7 +255,7 @@ updateDeviceMetaByUUID tp (UUID uuid) meta0 = do
       mdev <- getDevice False did
       case mdev of
         Nothing  -> pure ()
-        Just dev -> for_ (decode meta) (updateDeviceMetaValue tp dev)
+        Just dev -> for_ (decode meta) (updateMetric_ toMeta tp dev)
 
   where meta = replaceLB meta0
 
