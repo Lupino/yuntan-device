@@ -429,50 +429,59 @@ emqx5AuthReqHandler config = do
     Just EmqxSuperAdmin  -> json $ object
       [ "result" .= ("allow" :: String)
       , "is_superuser'" .= True
+      , "client_attrs" .= object
+        [ "tns" .= ("" :: String)
+        ]
       ]
 
     Just (EmqxAdmin (EmqxMountPoint p))  -> json $ object
       [ "result" .= ("allow" :: String)
       , "is_superuser'" .= False
-      , "acl" .=
-        [ object
-          [ "permission" .= ("allow" :: String)
-          , "action" .= ("all" :: String)
-          , "topic" .= (p ++ "/#")
-          ]
-        , object
-          [ "permission" .= ("allow" :: String)
-          , "action" .= ("publish" :: String)
-          , "topic" .= (p ++ "/+/attributes")
-          , "retain'" .= True
-          ]
-        , object
-          [ "permission" .= ("deny" :: String)
-          , "action" .= ("all" :: String)
-          , "topic" .= ("#" :: String)
-          ]
+      , "client_attrs" .= object
+        [ "tns" .= p
         ]
+      -- , "acl" .=
+      --   [ object
+      --     [ "permission" .= ("allow" :: String)
+      --     , "action" .= ("all" :: String)
+      --     , "topic" .= (p ++ "/#")
+      --     ]
+      --   , object
+      --     [ "permission" .= ("allow" :: String)
+      --     , "action" .= ("publish" :: String)
+      --     , "topic" .= (p ++ "/+/attributes")
+      --     , "retain'" .= True
+      --     ]
+      --   , object
+      --     [ "permission" .= ("deny" :: String)
+      --     , "action" .= ("all" :: String)
+      --     , "topic" .= ("#" :: String)
+      --     ]
+      --   ]
       ]
 
     Just (EmqxNormal (EmqxMountPoint p))  -> json $ object
       [ "result" .= ("allow" :: String)
       , "is_superuser'" .= False
-      , "acl" .=
-        [ object
-          [ "permission" .= ("allow" :: String)
-          , "action" .= ("all" :: String)
-          , "topic" .= (p ++ "/#")
-          ]
-        , object
-          [ "permission" .= ("allow" :: String)
-          , "action" .= ("publish" :: String)
-          , "topic" .= (p ++ "/attributes")
-          , "retain'" .= True
-          ]
-        , object
-          [ "permission" .= ("deny" :: String)
-          , "action" .= ("all" :: String)
-          , "topic" .= ("#" :: String)
-          ]
+      , "client_attrs" .= object
+        [ "tns" .= p
         ]
+      -- , "acl" .=
+      --   [ object
+      --     [ "permission" .= ("allow" :: String)
+      --     , "action" .= ("all" :: String)
+      --     , "topic" .= (p ++ "/#")
+      --     ]
+      --   , object
+      --     [ "permission" .= ("allow" :: String)
+      --     , "action" .= ("publish" :: String)
+      --     , "topic" .= (p ++ "/attributes")
+      --     , "retain'" .= True
+      --     ]
+      --   , object
+      --     [ "permission" .= ("deny" :: String)
+      --     , "action" .= ("all" :: String)
+      --     , "topic" .= ("#" :: String)
+      --     ]
+      --   ]
       ]
