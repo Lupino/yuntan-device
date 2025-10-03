@@ -169,6 +169,7 @@ removeDevice devid = do
   v1 <- dropMetric devid ""
   v2 <- RawAPI.removeIndex Nothing (Just devid)
   v3 <- dropCards devid
+  removePingAt devid
   return $ v0 + v1 + v2 + v3
 
 cacheMeta :: HasOtherEnv Cache u => DeviceID -> Meta -> GenHaxl u w ()
@@ -265,6 +266,9 @@ getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
 setPingAt did = set redisEnv (genPingAtKey did)
+
+removePingAt :: (HasOtherEnv Cache u) => DeviceID -> GenHaxl u w ()
+removePingAt did = remove redisEnv (genPingAtKey did)
 
 getDevId :: HasPSQL u => Text -> GenHaxl u w (Maybe DeviceID)
 getDevId ident
