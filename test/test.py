@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 import json
 from uuid import uuid4
 from time import time, sleep
+import os
 
 
 host = 'http://127.0.0.1:3000'
@@ -260,6 +261,7 @@ def test_index(ident):
 
     key = '1234567890abcdef'
     idents = []
+    devids = []
     for i in range(10):
         token = f'test_index_token_{i}'
         device = create_device(key, token)
@@ -267,6 +269,7 @@ def test_index(ident):
         check_equal(len(indexs), 0)
         uuid = device['uuid']
         idents.append(uuid)
+        devids.append(device['id'])
 
         ret = save_index(uuid, index_name2)
         check_equal(ret, {'result': 'OK'}, 'result')
@@ -275,8 +278,21 @@ def test_index(ident):
         indexs = device['index']
         check_equal(len(indexs), 1)
 
+        ret = save_index(uuid, index_name1)
+        check_equal(ret, {'result': 'OK'}, 'result')
+
+        ret = save_index(uuid, index_name0)
+        check_equal(ret, {'result': 'OK'}, 'result')
+
+    for devid in devids:
+        os.system(f'redis-cli del device:index:{devid}')
+
     ret = get_devices(idents=idents)
     check_equal(ret['total'], 10)
+
+    for device in ret['devices']:
+        print(device['index'])
+        check_equal(len(device['index']), 3)
 
     ret = get_devices(index_name=index_name2)
     check_equal(ret['total'], 10)
