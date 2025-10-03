@@ -2,7 +2,8 @@ import requests
 from urllib.parse import urlencode
 import json
 from uuid import uuid4
-from time import time
+from time import time, sleep
+
 
 host = 'http://127.0.0.1:3000'
 
@@ -151,6 +152,21 @@ def test_cards(ident):
 
     device = get_device(ident)
     check_equal(len(device['cards']), 0)
+
+
+def test_metric_same_value(ident):
+    ret = drop_metric(ident, 'temperature')
+    check_equal(ret, {'result': 'OK'}, 'result')
+    total = 10
+    for i in range(total):
+        metric = {'temperature': 28.2, 'index': i, 'created_at': i}
+        save_metric(ident, [metric])
+
+    ret = get_metric_list(ident, 'temperature')
+    check_equal(ret['total'], 1)
+
+    ret = drop_metric(ident, 'temperature')
+    check_equal(ret, {'result': 'OK'}, 'result')
 
 
 def test_metrics(ident):
@@ -322,6 +338,7 @@ def main():
 
     test_cards(uuid)
     test_metrics(uuid)
+    test_metric_same_value(uuid)
 
     test_index(uuid)
 
