@@ -165,7 +165,7 @@ updateDevice devid f = unCacheDevice devid . RawAPI.updateDevice devid f
 
 removeDevice :: (HasPSQL u, HasOtherEnv Cache u) => DeviceID -> GenHaxl u w Int64
 removeDevice devid = do
-  v0 <- unCacheDevice devid $ unCacheMeta devid $ RawAPI.removeDevice devid
+  v0 <- unCacheDevice devid $ unCacheMeta devid $ unCacheIndex devid $ RawAPI.removeDevice devid
   v1 <- dropMetric devid ""
   v2 <- RawAPI.removeIndex Nothing (Just devid)
   v3 <- dropCards devid
