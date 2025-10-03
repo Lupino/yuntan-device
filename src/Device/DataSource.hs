@@ -29,8 +29,8 @@ import           Data.Int                 (Int64)
 import           Data.List                (groupBy)
 import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
-import           Database.PSQL            (Action, Columns, HasPSQL, PSQL,
-                                           PSQLPool, Page, TableName,
+import           Database.PSQL            (Action, Column, Columns, HasPSQL,
+                                           PSQL, PSQLPool, Page, TableName,
                                            TablePrefix, psqlPool, runPSQLPool)
 import           Device.DataSource.Card
 import           Device.DataSource.Device
@@ -63,6 +63,7 @@ data DeviceReq a where
   GetIdByCol :: TableName -> String -> Text -> DeviceReq (Maybe Int64)
   GetIdListBy :: TableName -> String -> [Action] -> Page -> DeviceReq [Int64]
   CountBy :: TableName -> String -> [Action] -> DeviceReq Int64
+  CountColBy :: TableName -> Column -> String -> [Action] -> DeviceReq Int64
   GetIdListAll :: TableName -> Page -> DeviceReq [Int64]
   CountAll :: TableName -> DeviceReq Int64
 
@@ -91,10 +92,11 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (GetIdByCol a b c)      = hashWithSalt s (14::Int, a, b, c)
   hashWithSalt s (GetIdListBy a b c d)   = hashWithSalt s (15::Int, a, b, c, d)
   hashWithSalt s (CountBy a b c)         = hashWithSalt s (16::Int, a, b, c)
-  hashWithSalt s (GetIdListAll a b)      = hashWithSalt s (17::Int, a, b)
-  hashWithSalt s (CountAll a)            = hashWithSalt s (18::Int64, a)
+  hashWithSalt s (CountColBy a b c d)    = hashWithSalt s (17::Int, a, b, c, d)
+  hashWithSalt s (GetIdListAll a b)      = hashWithSalt s (18::Int, a, b)
+  hashWithSalt s (CountAll a)            = hashWithSalt s (19::Int64, a)
 
-  hashWithSalt s (GetCard a)             = hashWithSalt s (19::Int64, a)
+  hashWithSalt s (GetCard a)             = hashWithSalt s (20::Int64, a)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -288,6 +290,7 @@ fetchReq (RemoveBy a b c)        = removeBy a b c
 fetchReq (GetIdByCol a b c)      = getIdByCol a b c
 fetchReq (GetIdListBy a b c d)   = getIdListBy a b c d
 fetchReq (CountBy a b c)         = countBy a b c
+fetchReq (CountColBy a b c d)    = countColBy a b c d
 fetchReq (GetIdListAll a b)      = getIdListAll a b
 fetchReq (CountAll a)            = countAll a
 

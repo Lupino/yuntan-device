@@ -223,6 +223,9 @@ def test_index(ident):
     check_equal(indexs[1]['name'], index_name1)
     check_equal(indexs[2]['name'], index_name0)
 
+    ret = get_devices(index_name='index_0,index_1,index_2')
+    check_equal(ret['total'], 1)
+
     ret = remove_index(ident, index_name2)
     check_equal(ret, {'result': 'OK'}, 'result')
 

@@ -199,7 +199,7 @@ getIndexList = dataFetch . GetIndexList
 
 countIndex :: HasPSQL u => [IndexNameId] -> Maybe DeviceID -> GenHaxl u w Int64
 countIndex [] Nothing   = pure 0
-countIndex nids mDid = countBy indexs q a
+countIndex nids mDid = countColBy indexs "DISTINCT dev_id" q a
   where (q0, a0) = genMaybe "dev_id" mDid
         (q1, a1) = genIn "name_id" nids
 
@@ -259,6 +259,9 @@ getIdBy a b c = listToMaybe <$> getIdListBy a b c (pageDesc 0 1 "id")
 
 countBy :: (HasPSQL u, ToRow a) => TableName -> String -> a -> GenHaxl u w Int64
 countBy a b c = dataFetch (CountBy a b (toRow c))
+
+countColBy :: (HasPSQL u, ToRow a) => TableName -> Column -> String -> a -> GenHaxl u w Int64
+countColBy a b c d = dataFetch (CountColBy a b c (toRow d))
 
 getIdListAll :: HasPSQL u => TableName -> Page -> GenHaxl u w [Int64]
 getIdListAll a b = dataFetch (GetIdListAll a b)

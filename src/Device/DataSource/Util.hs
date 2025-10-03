@@ -11,6 +11,7 @@ module Device.DataSource.Util
 
   , getIdListBy
   , countBy
+  , countColBy
 
   , getIdListAll
   , countAll
@@ -19,10 +20,10 @@ module Device.DataSource.Util
 import           Data.Int      (Int64)
 import           Data.String   (fromString)
 import           Data.Text     (Text)
-import           Database.PSQL (Action, Columns, Only (..), PSQL, Page (..),
-                                TableName, count, count_, delete, insertRet,
-                                selectIn, selectOneOnly, selectOnly,
-                                selectOnly_, toRow, update)
+import           Database.PSQL (Action, Column, Columns, Only (..), PSQL,
+                                Page (..), TableName, count, countCol, count_,
+                                delete, insertRet, selectIn, selectOneOnly,
+                                selectOnly, selectOnly_, toRow, update)
 import           Device.Util   (getEpochTime)
 
 addOne_ :: TableName -> Columns -> [Action] -> PSQL Int64
@@ -52,6 +53,9 @@ getIdListBy tb = selectOnly tb "id"
 
 countBy :: TableName -> String -> [Action] -> PSQL Int64
 countBy = count
+
+countColBy :: TableName -> Column -> String -> [Action] -> PSQL Int64
+countColBy = countCol
 
 getIdListAll :: TableName -> Page -> PSQL [Int64]
 getIdListAll tb = selectOnly_ tb "id"
