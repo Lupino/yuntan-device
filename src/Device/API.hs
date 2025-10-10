@@ -226,8 +226,9 @@ updateMetric_
   => Bool -> String -> Device -> Value -> GenHaxl u w ()
 updateMetric_ toMeta "ping" Device{devID=did} _ = do
   ct <- getEpochTime
-  when toMeta $ void $ updateDeviceMeta did False online
-  void $ saveMetric did ct online
+  when toMeta $ do
+    void $ updateDeviceMeta did False online
+    void $ saveMetric did ct online
   setPingAt did ct
 
 updateMetric_ _ "telemetry" Device{devID=did} v = do
