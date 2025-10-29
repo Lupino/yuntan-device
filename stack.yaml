@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-24.8
+resolver: lts-24.17
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -37,7 +37,6 @@ resolver: lts-24.8
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-- /Users/lmj/yuntan/packages/yuntan-common/rediscaching-haxl
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
@@ -46,7 +45,7 @@ extra-deps:
 - git: https://github.com/facebook/Haxl.git
   commit: 037506e2f082c9b9bab3a473ef117fe0fdc1e35f
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: d4d6659dd59c8d4239238a022cc152a599f25d35
+  commit: ed1faaa8e545e7332dbe590b294684d3b2318518
   subdirs:
   - psql-utils
   - aeson-result

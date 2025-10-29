@@ -174,7 +174,7 @@ def test_metrics(ident):
     metrics = []
     total = 10
     for i in range(total):
-        metrics.append({'temperature': 28.2 + i, 'index': i, 'created_at': i})
+        metrics.append({'temperature': 28.2 + i, 'index': i, 'created_at': i, 'same': 10})
 
     save_metric(ident, metrics)
 
@@ -182,6 +182,10 @@ def test_metrics(ident):
     device = get_device(ident)
     check_equal(device['metric']['index'], 9)
     check_equal(device['metric']['temperature'], 37.2)
+    check_equal(device['metric']['same'], 10)
+
+    ret = get_metric_list(ident, 'same')
+    check_equal(ret['total'], 1)
 
     ret = get_metric_list(ident, 'temperature')
     check_equal(ret['total'], total)
