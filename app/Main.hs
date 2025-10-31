@@ -8,6 +8,7 @@ module Main
 import           Control.Concurrent.QSem
 import qualified Control.Exception                    as CE (bracket_)
 import           Control.Monad                        (void, when)
+import qualified Data.Aeson.Key                       as Key (Key)
 import           Data.ByteString                      (ByteString)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
@@ -101,6 +102,7 @@ program Options
       authKey      = C.authKey conf
       qps          = C.maxQPS conf
       attrToMeta   = C.attrToMeta conf
+      ignoreKeys   = C.ignoreMerticKeys conf
 
   sem <- newQSem qps
 
@@ -124,9 +126,9 @@ program Options
   when dryRun exitSuccess
 
   mqtt <- startMQTT allowKeys mqttConfig $ \tp uuid bs ->
-    runIO0 $ updateMetric attrToMeta tp uuid bs
+    runIO0 $ updateMetric ignoreKeys attrToMeta tp uuid bs
 
-  scottyOptsT opts runIO0 (application mqtt emqxAuth authEnable authKey)
+  scottyOptsT opts runIO0 (application mqtt emqxAuth ignoreKeys authEnable authKey)
   where runIO :: SimpleEnv C.Cache -> StateStore -> GenHaxl (SimpleEnv C.Cache) () b -> IO b
         runIO env s m = do
           env0 <- initEnv s env
@@ -134,8 +136,8 @@ program Options
 
 application
   :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w)
-  => MqttEnv -> Maybe C.EmqxAuthConfig -> Bool -> ByteString -> ScottyH u w ()
-application mqtt mEmqxAuth authEnable authKey = do
+  => MqttEnv -> Maybe C.EmqxAuthConfig -> [Key.Key] -> Bool -> ByteString -> ScottyH u w ()
+application mqtt mEmqxAuth ignoreKeys authEnable authKey = do
   middleware logStdout
 
   post "/api/devices/"                             $ requireAdmin $ createDeviceHandler allowKeys
@@ -151,7 +153,7 @@ application mqtt mEmqxAuth authEnable authKey = do
   get "/api/devices/:ident/"                       $ rdp getDeviceHandler
   post "/api/devices/:ident/rpc/"                  $ rdp $ rpcHandler mqtt
 
-  post "/api/devices/:ident/metric/"               $ rmd saveMetricHandler
+  post "/api/devices/:ident/metric/"               $ rmd $ saveMetricHandler ignoreKeys
   post "/api/devices/:ident/cards/"                $ rmd saveCardHandler
 
   get "/api/devices/:ident/metric/:param/"         $ rdp getMetricListHandler

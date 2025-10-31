@@ -223,23 +223,23 @@ online = object [ "state" .= ("online" :: String) ]
 
 updateMetric_
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => Bool -> String -> Device -> Value -> GenHaxl u w ()
-updateMetric_ toMeta "ping" Device{devID=did} _ = do
+  => [Key.Key] -> Bool -> String -> Device -> Value -> GenHaxl u w ()
+updateMetric_ ignoreKeys toMeta "ping" Device{devID=did} _ = do
   ct <- getEpochTime
   when toMeta $ do
     void $ updateDeviceMeta did False online
-    void $ saveMetric did ct online
+    void $ saveMetric ignoreKeys did ct online
   setPingAt did ct
 
-updateMetric_ _ "telemetry" Device{devID=did} v = do
+updateMetric_ ignoreKeys _ "telemetry" Device{devID=did} v = do
   ct <- getEpochTime
-  void $ saveMetric did ct v
+  void $ saveMetric ignoreKeys did ct v
   setPingAt did ct
 
-updateMetric_ toMeta tp Device{devID=did} v =
+updateMetric_ ignoreKeys toMeta tp Device{devID=did} v =
   unless (valueMember "err" v) $ do
     ct <- getEpochTime
-    void $ saveMetric did ct v
+    void $ saveMetric ignoreKeys did ct v
     setPingAt did ct
     when toMeta $ do
       nv <- merge <$> getMeta did
@@ -248,8 +248,8 @@ updateMetric_ toMeta tp Device{devID=did} v =
   where merge ometa = filterMeta force v ometa `union` online `union` ometa
         force = tp == "attributes"
 
-updateMetric :: (HasPSQL u, HasOtherEnv Cache u) => Bool -> String -> UUID -> LB.ByteString -> GenHaxl u w ()
-updateMetric toMeta tp (UUID uuid) meta0 = do
+updateMetric :: (HasPSQL u, HasOtherEnv Cache u) => [Key.Key] -> Bool -> String -> UUID -> LB.ByteString -> GenHaxl u w ()
+updateMetric ignoreKeys toMeta tp (UUID uuid) meta0 = do
   devid <- getDevIdByCol "uuid" uuid
   case devid of
     Nothing -> pure ()
@@ -257,7 +257,7 @@ updateMetric toMeta tp (UUID uuid) meta0 = do
       mdev <- getDevice False did
       case mdev of
         Nothing  -> pure ()
-        Just dev -> for_ (decode meta) (updateMetric_ toMeta tp dev)
+        Just dev -> for_ (decode meta) (updateMetric_ ignoreKeys toMeta tp dev)
 
   where meta = replaceLB meta0
 
@@ -307,14 +307,17 @@ getValueTime (x:xs) v =
 
 saveMetric
   :: (HasPSQL u, HasOtherEnv Cache u)
-  => DeviceID -> CreatedAt -> Value -> GenHaxl u w Int64
-saveMetric did createdAt (Object value) =
-  sum <$> mapM (saveMetricOne did ct) (KeyMap.toList value)
+  => [Key.Key] -> DeviceID -> CreatedAt -> Value -> GenHaxl u w Int64
+saveMetric ignoreKeys did createdAt (Object value) =
+  sum <$> mapM (saveMetricOne did ct) (KeyMap.toList $ KeyMap.filterWithKey isNotInIgnoreKeys value)
   where keys = ["created_at", "updated_at", "timestamp", "time"]
         ct = fromMaybe createdAt $ getValueTime keys (Object value)
-saveMetric did createdAt (Array value) =
-  sum <$> mapM (saveMetric did createdAt) value
-saveMetric _ _ _                        = return 0
+        allIgnoreKeys = ignoreKeys ++ keys ++ ["err", "error"]
+        isNotInIgnoreKeys :: Key.Key -> Value -> Bool
+        isNotInIgnoreKeys key _ = key `notElem` allIgnoreKeys
+saveMetric ignoreKeys did createdAt (Array value) =
+  sum <$> mapM (saveMetric ignoreKeys did createdAt) value
+saveMetric _ _ _ _ = return 0
 
 key2param :: Key.Key -> Param
 key2param = Param . Key.toText
@@ -322,16 +325,6 @@ key2param = Param . Key.toText
 saveMetricOne
   :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> CreatedAt -> (Key.Key, Value) -> GenHaxl u w Int64
-saveMetricOne _ _ ("err", _) = return 0
-saveMetricOne _ _ ("error", _) = return 0
-saveMetricOne _ _ ("created_at", _) = return 0
-saveMetricOne _ _ ("updated_at", _) = return 0
-saveMetricOne _ _ ("timestamp", _) = return 0
-saveMetricOne _ _ ("time", _) = return 0
-saveMetricOne _ _ ("verified", _) = return 0
-saveMetricOne _ _ ("crc", _) = return 0
-saveMetricOne _ _ ("modbus", _) = return 0
-saveMetricOne _ _ ("modbus_state", _) = return 0
 saveMetricOne did createdAt (param, String "online") =
   saveMetricRaw did (key2param param) "online" 1 createdAt
 saveMetricOne did createdAt (param, String "offline") =

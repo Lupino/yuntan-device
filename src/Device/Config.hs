@@ -17,6 +17,7 @@ module Device.Config
 
 import           Data.Aeson       (FromJSON, parseJSON, withObject, (.!=), (.:),
                                    (.:?))
+import qualified Data.Aeson.Key   as Key (Key)
 import           Data.ByteString  (ByteString)
 import           Data.String      (fromString)
 import           Database.PSQL    (HasOtherEnv, PSQLConfig (..), genPSQLPool,
@@ -54,29 +55,31 @@ instance FromJSON EmqxAuthConfig where
     return EmqxAuthConfig{ .. }
 
 data Config = Config
-  { psqlConfig  :: PSQLConfig
-  , mqttConfig  :: URI
-  , redisConfig :: RedisConfig
-  , allowKeys   :: [Key]
-  , emqxAuth    :: Maybe EmqxAuthConfig
-  , authEnable  :: Bool
-  , authKey     :: ByteString
-  , maxQPS      :: Int
-  , attrToMeta  :: Bool
+  { psqlConfig       :: PSQLConfig
+  , mqttConfig       :: URI
+  , redisConfig      :: RedisConfig
+  , allowKeys        :: [Key]
+  , ignoreMerticKeys :: [Key.Key]
+  , emqxAuth         :: Maybe EmqxAuthConfig
+  , authEnable       :: Bool
+  , authKey          :: ByteString
+  , maxQPS           :: Int
+  , attrToMeta       :: Bool
   }
   deriving (Show)
 
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \o -> do
-    psqlConfig <- o .: "psql"
-    mqtt <- o .: "mqtt"
-    redisConfig  <- o .:? "redis" .!= defaultRedisConfig
-    allowKeys  <- o .:? "allow_keys" .!= []
-    emqxAuth <- o .:? "emqx_auth"
-    authEnable <- o .:? "auth_enable" .!= False
-    authKey <- fromString <$> o .:? "auth_key" .!= ""
-    maxQPS <- o .:? "max_qps" .!= 100
-    attrToMeta <- o .:? "attr_to_meta" .!= True
+    psqlConfig       <- o .: "psql"
+    mqtt             <- o .: "mqtt"
+    redisConfig      <- o .:? "redis" .!= defaultRedisConfig
+    allowKeys        <- o .:? "allow_keys" .!= []
+    ignoreMerticKeys <- o .:? "ignore_mertic_keys" .!= []
+    emqxAuth         <- o .:? "emqx_auth"
+    authEnable       <- o .:? "auth_enable" .!= False
+    authKey          <- fromString <$> o .:? "auth_key" .!= ""
+    maxQPS           <- o .:? "max_qps" .!= 100
+    attrToMeta       <- o .:? "attr_to_meta" .!= True
     case parseURI mqtt of
       Nothing         -> fail "invalid mqtt uri"
       Just mqttConfig -> return Config{..}

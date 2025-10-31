@@ -47,3 +47,9 @@ redis:
 mqtt: mqtt://user:passwd@gw.huabot.com:11883
 # allow_keys:
 # - 1234567890abcdef
+
+ignore_mertic_keys:
+- verified
+- crc
+- modbus
+- modbus_state

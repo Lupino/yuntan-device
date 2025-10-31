@@ -36,6 +36,7 @@ import           Control.Monad          (void, when)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader   (lift)
 import           Data.Aeson             (decode, object, (.=))
+import qualified Data.Aeson.Key         as Key (Key)
 import           Data.Aeson.Result      (List (..))
 import           Data.Char              (toUpper)
 import           Data.Int               (Int64)
@@ -235,13 +236,13 @@ rpcHandler mqtt_ Device{devUUID = uuid, devKeyId = keyId} = do
 
 
 -- POST /api/devices/:ident/metric/
-saveMetricHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => Device -> ActionH u w ()
-saveMetricHandler Device{devID = did} = do
+saveMetricHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => [Key.Key] -> Device -> ActionH u w ()
+saveMetricHandler ignoreKeys Device{devID = did} = do
   metric <- formParam "metric"
   ct <- getEpochTime
   createdAt <- CreatedAt <$> safeFormParam "created_at" ct
   case decode metric of
-    Just ev -> void (lift $ saveMetric did createdAt ev) >> resultOK
+    Just ev -> void (lift $ saveMetric ignoreKeys did createdAt ev) >> resultOK
     Nothing -> errBadRequest "metric is required."
 
 
