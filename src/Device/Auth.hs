@@ -213,9 +213,9 @@ requireIndexName True key next = do
     noPermessions
 
 doCheckIndexName :: [IndexName] -> [IndexName] -> ([IndexName] -> ActionH u w ()) -> ActionH u w () -> ActionH u w ()
-doCheckIndexName _ [] _ nextCheck = nextCheck
+doCheckIndexName [] _ _ nextCheck = nextCheck
+doCheckIndexName expect [] next _ = next expect
 doCheckIndexName expect names next nextCheck
-  | null names = next expect
   | allIn names = next names
   | otherwise = nextCheck
   where allIn :: [IndexName] -> Bool
