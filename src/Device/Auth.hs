@@ -201,7 +201,9 @@ checkIndex names next dev nextCheck = do
 
 
 requireIndexName :: Monoid w => Bool -> ByteString -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
-requireIndexName False _ next = next []
+requireIndexName False _ next = do
+  names <- parseIndexName <$> safeQueryParam "index_name" ""
+  next names
 requireIndexName True key next = do
   names <- parseIndexName <$> safeQueryParam "index_name" ""
   requireAuth key $ \authInfo -> do
