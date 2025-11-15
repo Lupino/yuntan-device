@@ -200,20 +200,21 @@ checkIndex names next dev nextCheck = do
       nextCheck
 
 
-requireIndexName :: Monoid w => Bool -> ByteString -> ActionH u w () -> ActionH u w ()
-requireIndexName False _ next = next
+requireIndexName :: Monoid w => Bool -> ByteString -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
+requireIndexName False _ next = next []
 requireIndexName True key next = do
   names <- parseIndexName <$> safeQueryParam "index_name" ""
-  requireAuth key $ \authInfo ->
+  requireAuth key $ \authInfo -> do
     checkExpire authInfo
-    $ checkAdmin (authRole authInfo) next
+    $ checkAdmin (authRole authInfo) (next names)
     $ doCheckIndexName (allAuthIndexList authInfo) names next
     noPermessions
 
-doCheckIndexName :: [IndexName] -> [IndexName] -> ActionH u w () -> ActionH u w () -> ActionH u w ()
+doCheckIndexName :: [IndexName] -> [IndexName] -> ([IndexName] -> ActionH u w ()) -> ActionH u w () -> ActionH u w ()
 doCheckIndexName _ [] _ nextCheck = nextCheck
 doCheckIndexName expect names next nextCheck
-  | allIn names = next
+  | null names = next expect
+  | allIn names = next names
   | otherwise = nextCheck
   where allIn :: [IndexName] -> Bool
         allIn [] = True

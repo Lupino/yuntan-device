@@ -54,7 +54,7 @@ import           Device.Config          (Cache, EmqxAdminConfig (..),
                                          EmqxAuthConfig (..))
 import           Device.MQTT            (MqttEnv (mKey), cacheAble, request,
                                          sendDrop)
-import           Device.Util            (getEpochTime, parseIndexName)
+import           Device.Util            (getEpochTime)
 import           Haxl.Core              (GenHaxl)
 import           Network.HTTP.Types     (status400, status500)
 import           Web.Scotty.Haxl        (ActionH)
@@ -140,10 +140,9 @@ updateDevicePingAtHandler Device{devID = did} = do
   resultOK
 
 -- GET /api/devices/
-getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> ActionH u w ()
-getDeviceListHandler allowKeys = do
+getDeviceListHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => [Key] -> [IndexName] -> ActionH u w ()
+getDeviceListHandler allowKeys indexNames = do
   key <- Key <$> safeQueryParam "key" ""
-  indexNames <- parseIndexName <$> safeQueryParam "index_name" ""
   idents <- safeQueryParam "idents" ""
   gwid <- DeviceID <$> safeQueryParam "gw_id" 0
   if T.length idents > 0 then do
