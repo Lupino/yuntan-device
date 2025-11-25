@@ -3,6 +3,7 @@
 
 module Device.Auth
   ( genTokenHandler
+  , decodeTokenHandler
   , requireAdmin
   , requirePerm
   , requireManager
@@ -231,3 +232,7 @@ genTokenHandler key = do
   case eJwt of
     Left e    -> errBadRequest $ show e
     Right jwt -> ok "token" $ decodeUtf8 $ unJwt jwt
+
+
+decodeTokenHandler :: ByteString -> ActionH u w ()
+decodeTokenHandler key = requireAuth key $ ok "auth"

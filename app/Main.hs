@@ -168,6 +168,7 @@ application mqtt mEmqxAuth ignoreKeys authEnable authKey = do
   post "/api/devices/:ident/index/drop/"           $ rmd dropDeviceIndexHandler
   post "/api/index/drop/"                          $ requireAdmin dropIndexHandler
   post "/api/gen_token/"                           $ requireAdmin $ Auth.genTokenHandler authKey
+  post "/api/decode_token/"                        $ Auth.decodeTokenHandler authKey
 
   case mEmqxAuth of
     Nothing -> pure ()
