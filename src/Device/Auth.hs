@@ -8,6 +8,7 @@ module Device.Auth
   , requirePerm
   , requireManager
   , requireIndexName
+  , DAuthKey (..)
   ) where
 
 
@@ -95,6 +96,12 @@ instance ToJSON AuthInfo where
     ]
 
 
+data DAuthKey = DAuthKey
+  { dAuthKey           :: ByteString
+  , dAuthKeyDenyNonces :: [String]
+  }
+
+
 allAuthIndexList :: AuthInfo -> [IndexName]
 allAuthIndexList AuthInfo {..} =
   authIndexList ++ catMaybes [authManager, authUser]
@@ -116,15 +123,18 @@ decodeJwt key bearerToken = do
   where jwk = SymmetricJwk key Nothing Nothing Nothing
         token = encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken
 
-getAuthInfo :: ByteString -> ActionH u w (Maybe AuthInfo)
-getAuthInfo key = do
+getAuthInfo :: DAuthKey -> ActionH u w (Maybe AuthInfo)
+getAuthInfo DAuthKey {..} = do
   mBearerToken <- header "authorization"
   case mBearerToken of
     Nothing          -> pure Nothing
     Just bearerToken -> do
-      decoded <- liftIO $ decodeJwt key bearerToken
+      decoded <- liftIO $ decodeJwt dAuthKey bearerToken
       case decoded of
-        Just authInfo -> pure $ Just authInfo
+        Just authInfo ->
+          if authNonce authInfo `elem` dAuthKeyDenyNonces
+             then pure Nothing
+             else pure $ Just authInfo
         _             -> pure Nothing
 
 
@@ -135,9 +145,9 @@ checkExpire AuthInfo {authExpireAt = Just expAt} next = do
   if expAt > now then next
                  else err status401 "expired"
 
-requireAuth :: ByteString -> (AuthInfo -> ActionH u w ()) -> ActionH u w ()
-requireAuth key next = do
-  mAuthInfo <- getAuthInfo key
+requireAuth :: DAuthKey -> (AuthInfo -> ActionH u w ()) -> ActionH u w ()
+requireAuth dAuthKey next = do
+  mAuthInfo <- getAuthInfo dAuthKey
   case mAuthInfo of
     Nothing       -> err status401 "Unauthorized"
     Just authInfo -> next authInfo
@@ -145,16 +155,16 @@ requireAuth key next = do
 noPermessions :: ActionH u w ()
 noPermessions = err status403 "No permessions"
 
-requireAdmin :: Bool -> ByteString -> ActionH u w () -> ActionH u w ()
+requireAdmin :: Bool -> DAuthKey -> ActionH u w () -> ActionH u w ()
 requireAdmin False _ next = next
-requireAdmin True key next = do
-  requireAuth key $ \authInfo ->
+requireAdmin True dAuthKey next = do
+  requireAuth dAuthKey $ \authInfo ->
     checkExpire authInfo
     $ checkAdmin (authRole authInfo) next
     noPermessions
 
 
-requireManager :: HasPSQL u => Bool -> ByteString -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
+requireManager :: HasPSQL u => Bool -> DAuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requireManager False _ next dev = next dev
 requireManager True key next dev = do
   requireAuth key $ \authInfo ->
@@ -165,7 +175,7 @@ requireManager True key next dev = do
     noPermessions
 
 
-requirePerm :: HasPSQL u => Bool -> ByteString -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
+requirePerm :: HasPSQL u => Bool -> DAuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requirePerm False _ next dev = next dev
 requirePerm True key next dev = do
   requireAuth key $ \authInfo ->
@@ -201,7 +211,7 @@ checkIndex names next dev nextCheck = do
       nextCheck
 
 
-requireIndexName :: Monoid w => Bool -> ByteString -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
+requireIndexName :: Monoid w => Bool -> DAuthKey -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
 requireIndexName False _ next = do
   names <- parseIndexName <$> safeQueryParam "index_name" ""
   next names
@@ -234,5 +244,5 @@ genTokenHandler key = do
     Right jwt -> ok "token" $ decodeUtf8 $ unJwt jwt
 
 
-decodeTokenHandler :: ByteString -> ActionH u w ()
+decodeTokenHandler :: DAuthKey -> ActionH u w ()
 decodeTokenHandler key = requireAuth key $ ok "auth"

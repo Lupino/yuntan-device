@@ -9,7 +9,6 @@ import           Control.Concurrent.QSem
 import qualified Control.Exception                    as CE (bracket_)
 import           Control.Monad                        (void, when)
 import qualified Data.Aeson.Key                       as Key (Key)
-import           Data.ByteString                      (ByteString)
 import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
@@ -99,7 +98,7 @@ program Options
       emqxAuth     = C.emqxAuth conf
       allowKeys    = C.allowKeys conf
       authEnable   = C.authEnable conf
-      authKey      = C.authKey conf
+      authKey      = Auth.DAuthKey (C.authKey conf) (C.denyNonces conf)
       qps          = C.maxQPS conf
       attrToMeta   = C.attrToMeta conf
       ignoreKeys   = C.ignoreMerticKeys conf
@@ -136,7 +135,7 @@ program Options
 
 application
   :: (HasPSQL u, HasOtherEnv C.Cache u, Monoid w)
-  => MqttEnv -> Maybe C.EmqxAuthConfig -> [Key.Key] -> Bool -> ByteString -> ScottyH u w ()
+  => MqttEnv -> Maybe C.EmqxAuthConfig -> [Key.Key] -> Bool -> Auth.DAuthKey -> ScottyH u w ()
 application mqtt mEmqxAuth ignoreKeys authEnable authKey = do
   middleware logStdout
 
@@ -167,7 +166,7 @@ application mqtt mEmqxAuth ignoreKeys authEnable authKey = do
   post "/api/devices/:ident/index/delete/"         $ rmd removeIndexHandler
   post "/api/devices/:ident/index/drop/"           $ rmd dropDeviceIndexHandler
   post "/api/index/drop/"                          $ requireAdmin dropIndexHandler
-  post "/api/gen_token/"                           $ requireAdmin $ Auth.genTokenHandler authKey
+  post "/api/gen_token/"                           $ requireAdmin $ Auth.genTokenHandler (Auth.dAuthKey authKey)
   post "/api/decode_token/"                        $ Auth.decodeTokenHandler authKey
 
   case mEmqxAuth of

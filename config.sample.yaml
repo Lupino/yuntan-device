@@ -44,6 +44,10 @@ redis:
 # auth_enable: True
 # auth_key: fnsNK0ro6wg6RkWcXJx3Ft0
 
+deny_nonces:
+# 2025-12-27 23:59:59
+- HM6zBokgSYyTgdDrZ-U5mg
+
 mqtt: mqtt://user:passwd@gw.huabot.com:11883
 # allow_keys:
 # - 1234567890abcdef

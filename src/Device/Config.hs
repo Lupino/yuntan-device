@@ -65,6 +65,7 @@ data Config = Config
   , authKey          :: ByteString
   , maxQPS           :: Int
   , attrToMeta       :: Bool
+  , denyNonces       :: [String]
   }
   deriving (Show)
 
@@ -80,6 +81,7 @@ instance FromJSON Config where
     authKey          <- fromString <$> o .:? "auth_key" .!= ""
     maxQPS           <- o .:? "max_qps" .!= 100
     attrToMeta       <- o .:? "attr_to_meta" .!= True
+    denyNonces       <- o .:? "deny_nonces" .!= []
     case parseURI mqtt of
       Nothing         -> fail "invalid mqtt uri"
       Just mqttConfig -> return Config{..}
