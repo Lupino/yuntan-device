@@ -41,11 +41,11 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/dustin/mqtt-hs.git
-  commit: 7ec6ff33fb762e65fca83036a1e1ffff7e0a0d16
+  commit: b7e70d8b4b180e957217ecc5e5a8f808a41b208d
 - git: https://github.com/facebook/Haxl.git
-  commit: 037506e2f082c9b9bab3a473ef117fe0fdc1e35f
+  commit: 7652bae93379dee568573d0e92139a443eff3916
 - git: https://github.com/Lupino/yuntan-common.git
-  commit: ed1faaa8e545e7332dbe590b294684d3b2318518
+  commit: 1fedef89ef826191863bd45f084f61226efe6b85
   subdirs:
   - psql-utils
   - aeson-result

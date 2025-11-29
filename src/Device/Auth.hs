@@ -1,14 +1,16 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Device.Auth
   ( genTokenHandler
   , decodeTokenHandler
+  , revokeTokenHandler
   , requireAdmin
   , requirePerm
   , requireManager
   , requireIndexName
-  , DAuthKey (..)
+  , AuthKey (..)
   ) where
 
 
@@ -27,8 +29,10 @@ import           Data.Maybe             (catMaybes)
 import           Data.Text              (Text)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy         as LT (Text, drop, toStrict)
-import           Database.PSQL          (HasPSQL)
-import           Device.API             (countIndex, getIndexNameId_)
+import           Database.PSQL          (HasOtherEnv, HasPSQL)
+import           Device.API             (countIndex, getDenyNonce,
+                                         getIndexNameId_, setDenyNonce)
+import           Device.Config          (Cache)
 import           Device.Types           (Device (..), DeviceID, IndexName)
 import           Device.Util            (getEpochTime, parseIndexName)
 import           Jose.Jwa               (JwsAlg (HS256))
@@ -96,7 +100,7 @@ instance ToJSON AuthInfo where
     ]
 
 
-data DAuthKey = DAuthKey
+data AuthKey = AuthKey
   { dAuthKey           :: ByteString
   , dAuthKeyDenyNonces :: [String]
   }
@@ -106,13 +110,13 @@ allAuthIndexList :: AuthInfo -> [IndexName]
 allAuthIndexList AuthInfo {..} =
   authIndexList ++ catMaybes [authManager, authUser]
 
-encodeJwt :: MonadRandom m => ByteString -> AuthInfo -> m (Either JwtError Jwt)
-encodeJwt key info = Jwt.encode [jwk]  (JwsEncoding HS256) (Claims . L.toStrict $ Aeson.encode info)
+encodeJwt :: MonadRandom m => AuthKey -> AuthInfo -> m (Either JwtError Jwt)
+encodeJwt (AuthKey key _) info = Jwt.encode [jwk]  (JwsEncoding HS256) (Claims . L.toStrict $ Aeson.encode info)
   where jwk = SymmetricJwk key Nothing Nothing Nothing
 
 
-decodeJwt :: MonadRandom m => ByteString -> LT.Text -> m (Maybe AuthInfo)
-decodeJwt key bearerToken = do
+decodeJwt :: MonadRandom m => AuthKey -> LT.Text -> m (Maybe AuthInfo)
+decodeJwt (AuthKey key _) bearerToken = do
   decoded <- Jwt.decode [jwk] (Just (JwsEncoding HS256)) token
   case decoded of
     Left _              -> pure Nothing
@@ -123,18 +127,22 @@ decodeJwt key bearerToken = do
   where jwk = SymmetricJwk key Nothing Nothing Nothing
         token = encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken
 
-getAuthInfo :: DAuthKey -> ActionH u w (Maybe AuthInfo)
-getAuthInfo DAuthKey {..} = do
+getAuthInfo :: HasOtherEnv Cache u => AuthKey -> ActionH u w (Maybe AuthInfo)
+getAuthInfo authKey = do
   mBearerToken <- header "authorization"
   case mBearerToken of
     Nothing          -> pure Nothing
     Just bearerToken -> do
-      decoded <- liftIO $ decodeJwt dAuthKey bearerToken
+      decoded <- liftIO $ decodeJwt authKey bearerToken
       case decoded of
-        Just authInfo ->
-          if authNonce authInfo `elem` dAuthKeyDenyNonces
-             then pure Nothing
-             else pure $ Just authInfo
+        Just authInfo -> do
+          mNonce <- lift $ getDenyNonce (authNonce authInfo)
+          case mNonce of
+            Nothing ->
+              if authNonce authInfo `elem` dAuthKeyDenyNonces authKey
+                 then pure Nothing
+                 else pure $ Just authInfo
+            _       -> pure Nothing
         _             -> pure Nothing
 
 
@@ -145,7 +153,7 @@ checkExpire AuthInfo {authExpireAt = Just expAt} next = do
   if expAt > now then next
                  else err status401 "expired"
 
-requireAuth :: DAuthKey -> (AuthInfo -> ActionH u w ()) -> ActionH u w ()
+requireAuth :: HasOtherEnv Cache u => AuthKey -> (AuthInfo -> ActionH u w ()) -> ActionH u w ()
 requireAuth dAuthKey next = do
   mAuthInfo <- getAuthInfo dAuthKey
   case mAuthInfo of
@@ -155,7 +163,7 @@ requireAuth dAuthKey next = do
 noPermessions :: ActionH u w ()
 noPermessions = err status403 "No permessions"
 
-requireAdmin :: Bool -> DAuthKey -> ActionH u w () -> ActionH u w ()
+requireAdmin :: HasOtherEnv Cache u => Bool -> AuthKey -> ActionH u w () -> ActionH u w ()
 requireAdmin False _ next = next
 requireAdmin True dAuthKey next = do
   requireAuth dAuthKey $ \authInfo ->
@@ -164,7 +172,9 @@ requireAdmin True dAuthKey next = do
     noPermessions
 
 
-requireManager :: HasPSQL u => Bool -> DAuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
+requireManager
+  :: (HasOtherEnv Cache u, HasPSQL u)
+  => Bool -> AuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requireManager False _ next dev = next dev
 requireManager True key next dev = do
   requireAuth key $ \authInfo ->
@@ -175,7 +185,9 @@ requireManager True key next dev = do
     noPermessions
 
 
-requirePerm :: HasPSQL u => Bool -> DAuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
+requirePerm
+  :: (HasOtherEnv Cache u, HasPSQL u)
+  => Bool -> AuthKey -> (Device -> ActionH u w ()) -> Device -> ActionH u w ()
 requirePerm False _ next dev = next dev
 requirePerm True key next dev = do
   requireAuth key $ \authInfo ->
@@ -211,7 +223,9 @@ checkIndex names next dev nextCheck = do
       nextCheck
 
 
-requireIndexName :: Monoid w => Bool -> DAuthKey -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
+requireIndexName
+  :: (HasOtherEnv Cache u, Monoid w)
+  => Bool -> AuthKey -> ([IndexName] -> ActionH u w ()) -> ActionH u w ()
 requireIndexName False _ next = do
   names <- parseIndexName <$> safeQueryParam "index_name" ""
   next names
@@ -235,7 +249,7 @@ doCheckIndexName expect names next nextCheck
           | x `elem` expect = allIn xs
           | otherwise = False
 
-genTokenHandler :: ByteString -> ActionH u w ()
+genTokenHandler :: AuthKey -> ActionH u w ()
 genTokenHandler key = do
   authInfo <- jsonData
   eJwt <- liftIO $ encodeJwt key authInfo
@@ -244,5 +258,9 @@ genTokenHandler key = do
     Right jwt -> ok "token" $ decodeUtf8 $ unJwt jwt
 
 
-decodeTokenHandler :: DAuthKey -> ActionH u w ()
+decodeTokenHandler :: HasOtherEnv Cache u => AuthKey -> ActionH u w ()
 decodeTokenHandler key = requireAuth key $ ok "auth"
+
+revokeTokenHandler :: HasOtherEnv Cache u => AuthKey -> ActionH u w ()
+revokeTokenHandler key = requireAuth key $ \authInfo ->
+  lift $ setDenyNonce (authNonce authInfo) (authExpireAt authInfo)

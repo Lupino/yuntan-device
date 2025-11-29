@@ -26,6 +26,9 @@ module Device.API
   , saveIndex
   , removeIndex
 
+  , getDenyNonce
+  , setDenyNonce
+
   , module X
   ) where
 
@@ -66,8 +69,9 @@ import qualified Device.RawAPI          as RawAPI
 import           Device.Types
 import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
-import           Haxl.RedisCache        (cached, cached', get, hdel, hget',
-                                         hgetallKV, hgetallV, hset, remove, set)
+import           Haxl.RedisCache        (cached, cached', expire, get, hdel,
+                                         hget', hgetallKV, hgetallV, hset,
+                                         remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -99,6 +103,9 @@ genIndexKey (DeviceID devid) = fromString $ "index:" ++ show devid
 
 genMetaKey :: DeviceID -> ByteString
 genMetaKey (DeviceID devid) = fromString $ "meta:" ++ show devid
+
+genDenyNonceKey :: String -> ByteString
+genDenyNonceKey key = fromString $ "deny_nonce:" ++ key
 
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
@@ -263,6 +270,21 @@ updateMetric ignoreKeys toMeta tp (UUID uuid) meta0 = do
 
 getPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w CreatedAt
 getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
+
+getDenyNonce :: (HasOtherEnv Cache u) => String -> GenHaxl u w (Maybe Integer)
+getDenyNonce key = get redisEnv (genDenyNonceKey key)
+
+setDenyNonce :: (HasOtherEnv Cache u) => String -> Maybe Int64 -> GenHaxl u w ()
+setDenyNonce key mExpiresAt = do
+  now <- Util.getEpochTime
+  set redisEnv rkey now
+  case mExpiresAt of
+    Just expiresAt -> do
+      expire redisEnv rkey (fromIntegral (expiresAt - now))
+    Nothing -> pure ()
+
+  where rkey = genDenyNonceKey key
+
 
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
