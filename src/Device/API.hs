@@ -274,14 +274,11 @@ getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 getDenyNonce :: (HasOtherEnv Cache u) => String -> GenHaxl u w (Maybe Integer)
 getDenyNonce key = get redisEnv (genDenyNonceKey key)
 
-setDenyNonce :: (HasOtherEnv Cache u) => String -> Maybe Int64 -> GenHaxl u w ()
-setDenyNonce key mExpiresAt = do
+setDenyNonce :: (HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
+setDenyNonce key expiresAt = do
   now <- Util.getEpochTime
-  set redisEnv rkey now
-  case mExpiresAt of
-    Just expiresAt -> do
-      expire redisEnv rkey (fromIntegral (expiresAt - now))
-    Nothing -> pure ()
+  set redisEnv rkey expiresAt
+  expire redisEnv rkey (fromIntegral (expiresAt - now))
 
   where rkey = genDenyNonceKey key
 

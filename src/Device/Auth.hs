@@ -43,7 +43,7 @@ import           Jose.Jwt               (Jwt (..), JwtContent (..),
 import qualified Jose.Jwt               as Jwt (decode, encode)
 import           Network.HTTP.Types     (status401, status403)
 import           Web.Scotty.Haxl        (ActionH)
-import           Web.Scotty.Trans       (header, jsonData)
+import           Web.Scotty.Trans       (formParam, header, jsonData)
 import           Web.Scotty.Utils       (err, errBadRequest, ok, safeQueryParam)
 
 data Role = RoleAdmin | RoleNormal | Role Text | RoleEmpty
@@ -261,6 +261,8 @@ genTokenHandler key = do
 decodeTokenHandler :: HasOtherEnv Cache u => AuthKey -> ActionH u w ()
 decodeTokenHandler key = requireAuth key $ ok "auth"
 
-revokeTokenHandler :: HasOtherEnv Cache u => AuthKey -> ActionH u w ()
-revokeTokenHandler key = requireAuth key $ \authInfo ->
-  lift $ setDenyNonce (authNonce authInfo) (authExpireAt authInfo)
+revokeTokenHandler :: (HasOtherEnv Cache u, Monoid w) => ActionH u w ()
+revokeTokenHandler = do
+  nonce <- formParam "nonce"
+  expiresAt <- formParam "expires_at"
+  lift $ setDenyNonce nonce expiresAt
