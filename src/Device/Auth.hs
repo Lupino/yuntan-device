@@ -266,3 +266,4 @@ revokeTokenHandler = do
   nonce <- formParam "nonce"
   expiresAt <- formParam "expires_at"
   lift $ setDenyNonce nonce expiresAt
+  ok "result" ("OK" :: String)
