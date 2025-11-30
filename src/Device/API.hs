@@ -87,25 +87,25 @@ io $> a = do
   return r
 
 genPingAtKey :: DeviceID -> ByteString
-genPingAtKey (DeviceID devid) = fromString $ "ping_at:" ++ show devid
+genPingAtKey (DeviceID devid) = fromString $ "kv:ping_at:" ++ show devid
 
 genDeviceKey :: DeviceID -> ByteString
-genDeviceKey (DeviceID devid) = fromString $ "device:" ++ show devid
+genDeviceKey (DeviceID devid) = fromString $ "kv:device:" ++ show devid
 
 genMetricKey :: DeviceID -> ByteString
-genMetricKey (DeviceID devid) = fromString $ "metric:" ++ show devid
+genMetricKey (DeviceID devid) = fromString $ "hs:metric:" ++ show devid
 
 genCardsKey :: DeviceID -> ByteString
-genCardsKey (DeviceID devid) = fromString $ "cards:" ++ show devid
+genCardsKey (DeviceID devid) = fromString $ "hs:cards:" ++ show devid
 
 genIndexKey :: DeviceID -> ByteString
-genIndexKey (DeviceID devid) = fromString $ "index:" ++ show devid
+genIndexKey (DeviceID devid) = fromString $ "kv:index:" ++ show devid
 
 genMetaKey :: DeviceID -> ByteString
-genMetaKey (DeviceID devid) = fromString $ "meta:" ++ show devid
+genMetaKey (DeviceID devid) = fromString $ "hs:meta:" ++ show devid
 
 genDenyNonceKey :: String -> ByteString
-genDenyNonceKey key = fromString $ "deny_nonce:" ++ key
+genDenyNonceKey key = fromString $ "kv:deny_nonce:" ++ key
 
 unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
