@@ -18,28 +18,33 @@ module Device.DataSource
 
   , indexs
   , indexNames
+
+  , denyNonces
   ) where
 
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.QSem
-import qualified Control.Exception        as CE (SomeException, bracket_, try)
-import           Data.Hashable            (Hashable (..))
-import           Data.Int                 (Int64)
-import           Data.List                (groupBy)
-import           Data.Text                (Text)
-import           Data.Typeable            (Typeable)
-import           Database.PSQL            (Action, Column, Columns, HasPSQL,
-                                           PSQL, PSQLPool, Page, TableName,
-                                           TablePrefix, psqlPool, runPSQLPool)
+import qualified Control.Exception           as CE (SomeException, bracket_,
+                                                    try)
+import           Data.Hashable               (Hashable (..))
+import           Data.Int                    (Int64)
+import           Data.List                   (groupBy)
+import           Data.Text                   (Text)
+import           Data.Typeable               (Typeable)
+import           Database.PSQL               (Action, Column, Columns, HasPSQL,
+                                              PSQL, PSQLPool, Page, TableName,
+                                              TablePrefix, psqlPool,
+                                              runPSQLPool)
 import           Device.DataSource.Card
+import           Device.DataSource.DenyNonce
 import           Device.DataSource.Device
 import           Device.DataSource.Index
 import           Device.DataSource.Metric
 import           Device.DataSource.Table
 import           Device.DataSource.Util
 import           Device.Types
-import           Haxl.Core                hiding (env, fetchReq)
+import           Haxl.Core                   hiding (env, fetchReq)
 
 -- Data source implementation.
 
@@ -68,6 +73,7 @@ data DeviceReq a where
   CountAll :: TableName -> DeviceReq Int64
 
   GetCard :: CardID -> DeviceReq (Maybe Card)
+  GetDenyNonce :: DenyNonceID -> DeviceReq (Maybe DenyNonce)
 
   deriving (Typeable)
 
@@ -97,6 +103,7 @@ instance Hashable (DeviceReq a) where
   hashWithSalt s (CountAll a)            = hashWithSalt s (19::Int64, a)
 
   hashWithSalt s (GetCard a)             = hashWithSalt s (20::Int64, a)
+  hashWithSalt s (GetDenyNonce a)             = hashWithSalt s (21::Int64, a)
 
 deriving instance Show (DeviceReq a)
 instance ShowP DeviceReq where showp = show
@@ -113,6 +120,7 @@ instance HasPSQL u => DataSource u DeviceReq where
 isSameType :: BlockedFetch DeviceReq -> BlockedFetch DeviceReq -> Bool
 isSameType (BlockedFetch (GetDevice _) _) (BlockedFetch (GetDevice _) _) = True
 isSameType (BlockedFetch (GetCard _) _) (BlockedFetch (GetCard _) _) = True
+isSameType (BlockedFetch (GetDenyNonce _) _) (BlockedFetch (GetDenyNonce _) _) = True
 isSameType (BlockedFetch (GetDevKeyByID _) _) (BlockedFetch (GetDevKeyByID _) _) = True
 isSameType (BlockedFetch (GetMetric _) _) (BlockedFetch (GetMetric _) _) = True
 isSameType (BlockedFetch (GetLastMetricIdList _) _) (BlockedFetch (GetLastMetricIdList _) _) = True
@@ -268,6 +276,21 @@ fetchSync reqs@((BlockedFetch (GetCard _) _):_) prefix pool = do
 
         putReq _ _ = return ()
 
+fetchSync reqs@((BlockedFetch (GetDenyNonce _) _):_) prefix pool = do
+  e <- CE.try $ runPSQLPool prefix pool (getDenyNonceList ids)
+  case e of
+    Left ex -> mapM_ (putFail ex) reqs
+    Right a ->  mapM_ (putReq a) reqs
+
+  where ids = [i | BlockedFetch (GetDenyNonce i) _ <- reqs]
+        putReq :: [DenyNonce] -> BlockedFetch DeviceReq ->  IO ()
+        putReq [] (BlockedFetch (GetDenyNonce _) rvar) = putSuccess rvar Nothing
+        putReq (x:xs) req@(BlockedFetch (GetDenyNonce i) rvar)
+          | i == nonceID x = putSuccess rvar (Just x)
+          | otherwise = putReq xs req
+
+        putReq _ _ = return ()
+
 fetchSync reqs prefix pool = mapM_ (\x -> fetchSync [x] prefix pool) reqs
 
 fetchReq :: DeviceReq a -> PSQL a
@@ -295,6 +318,7 @@ fetchReq (GetIdListAll a b)      = getIdListAll a b
 fetchReq (CountAll a)            = countAll a
 
 fetchReq (GetCard a)             = getCard a
+fetchReq (GetDenyNonce a)        = getDenyNonce a
 
 initDeviceState :: Int -> TablePrefix -> State DeviceReq
 initDeviceState = DeviceState

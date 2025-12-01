@@ -32,6 +32,8 @@ module Device.API
   , getDenyNonce
   , setDenyNonce
 
+  , restoreDenyNonceCache
+
   , module X
   ) where
 
@@ -309,14 +311,46 @@ getPingAt did defval = fromMaybe defval <$> get redisEnv (genPingAtKey did)
 getDenyNonce :: (HasOtherEnv Cache u) => String -> GenHaxl u w (Maybe Integer)
 getDenyNonce key = get redisEnv (genDenyNonceKey key)
 
-setDenyNonce :: (HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
+setDenyNonce :: (HasPSQL u, HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
 setDenyNonce key expiresAt = do
+  setDenyNonce_ key expiresAt
+  void $ RawAPI.createDenyNonce key expiresAt
+  now <- Util.getEpochTime
+  void $ RawAPI.dropDenyNonces now
+
+setDenyNonce_ :: (HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
+setDenyNonce_ key expiresAt = do
   now <- Util.getEpochTime
   set redisEnv rkey expiresAt
   expire redisEnv rkey (fromIntegral (expiresAt - now))
 
   where rkey = genDenyNonceKey key
 
+
+restoreDenyNonceCache :: (HasPSQL u, HasOtherEnv Cache u) => GenHaxl u w ()
+restoreDenyNonceCache = do
+  now <- Util.getEpochTime
+  _ <- RawAPI.dropDenyNonces now
+  restoreDenyNonceCache_ $ pageAsc 0 500 "id"
+
+restoreDenyNonceCache_
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => Page -> GenHaxl u w ()
+restoreDenyNonceCache_ p = do
+  ids <- RawAPI.getDenyNonceIdList p
+  mapM_ restoreOneDenyNonceCache ids
+  unless (null ids) $ restoreAllDeviceCache_ p { pageFrom = nextFrom }
+
+  where nextFrom = From $ unFrom (pageFrom p) + unSize (pageSize p)
+
+restoreOneDenyNonceCache
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DenyNonceID -> GenHaxl u w ()
+restoreOneDenyNonceCache nid = do
+  mNonce <- RawAPI.getDenyNonce nid
+  case mNonce of
+    Nothing    -> pure ()
+    Just nonce -> setDenyNonce_ (nonceName nonce) (nonceExpiresAt nonce)
 
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()

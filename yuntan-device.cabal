@@ -28,6 +28,7 @@ library
                      , Device.DataSource.Index
                      , Device.DataSource.Util
                      , Device.DataSource.Card
+                     , Device.DataSource.DenyNonce
 
                      , Device.MQTT
 

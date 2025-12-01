@@ -44,6 +44,11 @@ module Device.RawAPI
   , dropCards
   , getCards
 
+  , createDenyNonce
+  , getDenyNonce
+  , dropDenyNonces
+  , getDenyNonceIdList
+
   , updateById
   , removeBy
   , getIdByCol
@@ -231,6 +236,19 @@ getCards :: HasPSQL u => DeviceID -> GenHaxl u w [Card]
 getCards did = do
   cardIds <- getIdListBy cards "dev_id = ?" (Only did) (pageDesc 0 0 "id")
   catMaybes <$> mapM (getCard . CardID) cardIds
+
+createDenyNonce :: HasPSQL u => String -> Int64 -> GenHaxl u w DenyNonceID
+createDenyNonce nonce expiresAt =
+  DenyNonceID <$> addOne denyNonces ["nonce", "expires_at"] (nonce, expiresAt)
+
+getDenyNonce :: HasPSQL u => DenyNonceID -> GenHaxl u w (Maybe DenyNonce)
+getDenyNonce a = dataFetch (GetDenyNonce a)
+
+dropDenyNonces :: HasPSQL u => Int64 -> GenHaxl u w Int64
+dropDenyNonces = removeBy denyNonces "expires_at < ?" . Only
+
+getDenyNonceIdList :: HasPSQL u => Page -> GenHaxl u w [DenyNonceID]
+getDenyNonceIdList p = map DenyNonceID <$> getIdListAll denyNonces p
 
 ---------------------------- Util ----------------------------------
 

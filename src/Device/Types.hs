@@ -23,6 +23,9 @@ module Device.Types
   , Card (..)
   , CardID (..)
 
+  , DenyNonce (..)
+  , DenyNonceID (..)
+
   , Emqx5Auth (..)
   , EmqxUser (..)
   , EmqxMountPoint (..)
@@ -639,3 +642,61 @@ instance FromJSON Index where
     indexDevId     <- o .: "dev_id"
     indexCreatedAt <- o .: "created_at"
     return Index{..}
+
+newtype DenyNonceID = DenyNonceID {unDenyNonceID :: Int64}
+  deriving (Show, Eq, Ord)
+
+instance Hashable DenyNonceID where
+  hashWithSalt s (DenyNonceID v) = hashWithSalt s v
+
+instance ToField DenyNonceID where
+  toField (DenyNonceID k) = toField k
+
+instance FromField DenyNonceID where
+  fromField f mv = DenyNonceID <$> fromField f mv
+
+instance Num DenyNonceID where
+  DenyNonceID c1 + DenyNonceID c2 = DenyNonceID (c1 + c2)
+  {-# INLINABLE (+) #-}
+
+  DenyNonceID c1 - DenyNonceID c2 = DenyNonceID (c1 - c2)
+  {-# INLINABLE (-) #-}
+
+  DenyNonceID c1 * DenyNonceID c2 = DenyNonceID (c1 * c2)
+  {-# INLINABLE (*) #-}
+
+  abs (DenyNonceID c) = DenyNonceID (abs c)
+  {-# INLINABLE abs #-}
+
+  negate (DenyNonceID c) = DenyNonceID (negate c)
+  {-# INLINABLE negate #-}
+
+  signum (DenyNonceID c) = DenyNonceID (signum c)
+  {-# INLINABLE signum #-}
+
+  fromInteger = DenyNonceID . fromInteger
+  {-# INLINABLE fromInteger #-}
+
+instance FromJSON DenyNonceID where
+  parseJSON = withScientific "DenyNonceID" $ \t ->
+    pure $ DenyNonceID $ fromMaybe 0 $ toBoundedInteger t
+
+instance ToJSON DenyNonceID where
+  toJSON (DenyNonceID k) = toJSON k
+
+
+data DenyNonce = DenyNonce
+  { nonceID        :: DenyNonceID
+  , nonceName      :: String
+  , nonceExpiresAt :: Int64
+  , nonceCreatedAt :: CreatedAt
+  }
+  deriving (Show)
+
+instance FromRow DenyNonce where
+  fromRow = do
+    nonceID <- field
+    nonceName <- field
+    nonceExpiresAt <- field
+    nonceCreatedAt <- field
+    return DenyNonce { .. }

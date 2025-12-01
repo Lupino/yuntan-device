@@ -366,7 +366,8 @@ dropIndexHandler = do
 -- POST /api/restore_cache/
 restoreCacheHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
 restoreCacheHandler = do
-  lift $ restoreAllDeviceCache
+  lift restoreAllDeviceCache
+  lift restoreDenyNonceCache
   resultOK
 
 emqxSuperReqHandler :: ActionH u w ()

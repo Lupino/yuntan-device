@@ -72,6 +72,16 @@ createCardTable =
     ]
 
 
+createDenyNonceTable :: PSQL Int64
+createDenyNonceTable =
+  PSQL.createTable "deny_nonces"
+    [ "id SERIAL PRIMARY KEY"
+    , "nonce VARCHAR(128) NOT NULL"
+    , "expires_at INT NOT NULL"
+    , "created_at INT NOT NULL"
+    ]
+
+
 createTable :: PSQL Int64
 createTable =
   sum <$> sequence
@@ -93,4 +103,6 @@ createTable =
 
     , createCardTable
     , createIndex True "cards" "card_uniq_key" ["dev_id", "param"]
+    , createDenyNonceTable
+    , createIndex True "deny_nonces" "deny_nonce_uniq_key" ["nonce"]
     ]

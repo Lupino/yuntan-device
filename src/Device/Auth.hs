@@ -261,7 +261,7 @@ genTokenHandler key = do
 decodeTokenHandler :: HasOtherEnv Cache u => AuthKey -> ActionH u w ()
 decodeTokenHandler key = requireAuth key $ ok "auth"
 
-revokeTokenHandler :: (HasOtherEnv Cache u, Monoid w) => ActionH u w ()
+revokeTokenHandler :: (HasPSQL u, HasOtherEnv Cache u, Monoid w) => ActionH u w ()
 revokeTokenHandler = do
   nonce <- formParam "nonce"
   expiresAt <- formParam "expires_at"
