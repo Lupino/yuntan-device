@@ -26,6 +26,8 @@ module Device.Handler
   , dropDeviceIndexHandler
   , dropIndexHandler
 
+  , restoreCacheHandler
+
   , emqxAclReqHandler
   , emqxSuperReqHandler
   , emqxAuthReqHandler
@@ -358,6 +360,13 @@ dropIndexHandler = do
       Just nid -> do
         void $ removeIndexName nid
         void $ removeIndex mnid Nothing
+  resultOK
+
+
+-- POST /api/restore_cache/
+restoreCacheHandler :: (Monoid w, HasPSQL u, HasOtherEnv Cache u) => ActionH u w ()
+restoreCacheHandler = do
+  lift $ restoreAllDeviceCache
   resultOK
 
 emqxSuperReqHandler :: ActionH u w ()

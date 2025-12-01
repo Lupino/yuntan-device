@@ -9,6 +9,9 @@ module Device.API
   , removeDevice
   , updateMetric
 
+  , restoreDeviceCache
+  , restoreAllDeviceCache
+
   , getDevId
   , randomAddr
 
@@ -52,7 +55,9 @@ import           Data.String            (fromString)
 import           Data.Text              (Text, replace, toLower)
 import qualified Data.Text              as T (drop, take, unpack)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import           Database.PSQL          (Column, HasOtherEnv, HasPSQL, pageNone)
+import           Database.PSQL          (Column, From (..), HasOtherEnv,
+                                         HasPSQL, Page (..), Size (..), pageAsc,
+                                         pageNone)
 import           Device.Config          (Cache, redisEnv)
 import           Device.RawAPI          as X (countDevAddrByGw, countDevice,
                                               countDeviceByKey, countIndex,
@@ -121,6 +126,36 @@ unCacheIndex devid io = io $> remove redisEnv (genIndexKey devid)
 
 unCacheMeta:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheMeta devid io = io $> remove redisEnv (genMetaKey devid)
+
+
+restoreAllDeviceCache :: (HasPSQL u, HasOtherEnv Cache u) => GenHaxl u w ()
+restoreAllDeviceCache = restoreAllDeviceCache_ $ pageAsc 0 500 "id"
+
+restoreAllDeviceCache_
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => Page -> GenHaxl u w ()
+restoreAllDeviceCache_ p = do
+  ids <- getDevIdList p
+  mapM_ restoreDeviceCache ids
+  unless (null ids) $ restoreAllDeviceCache_ p { pageFrom = nextFrom }
+
+  where nextFrom = From $ unFrom (pageFrom p) + unSize (pageSize p)
+
+
+restoreDeviceCache
+  :: (HasPSQL u, HasOtherEnv Cache u)
+  => DeviceID -> GenHaxl u w ()
+restoreDeviceCache did = do
+  mdev <- RawAPI.getDevice did
+  case mdev of
+    Nothing  -> pure ()
+    Just dev -> do
+      set redisEnv (genDeviceKey did) dev
+      void $ getLastMetric_ did
+      void $ getCardsAndCache did
+      indexList <- RawAPI.getIndexList did
+      set redisEnv (genIndexKey did) indexList
+      cacheMeta did $ devMeta dev
 
 getDevice :: (HasPSQL u, HasOtherEnv Cache u) => Bool -> DeviceID -> GenHaxl u w (Maybe Device)
 getDevice False devid = cached redisEnv (genDeviceKey devid) $ RawAPI.getDevice devid
