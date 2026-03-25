@@ -1,0 +1,164 @@
+name: Stack CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  stack-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+
+      - name: Cache Stack dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml.lock', 'stack.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Stack build
+        run: stack --no-terminal --install-ghc build
+
+      - name: Stack test
+        run: stack --no-terminal --install-ghc test
+
+  integration-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: devicedb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d devicedb"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      mosquitto:
+        image: eclipse-mosquitto:2
+        ports:
+          - 1883:1883
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Stack dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml.lock', 'stack.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      - name: Prepare CI config
+        run: |
+          cat > config.ci.yaml <<'EOF'
+          max_qps: 100
+          attr_to_meta: false
+          psql:
+            db: devicedb
+            host: 127.0.0.1
+            port: 5432
+            user: postgres
+            pass: postgres
+            idleTime: 1
+            maxResources: 10
+          redis:
+            db: 0
+            host: 127.0.0.1
+            port: 6379
+            enable: true
+            maxConnections: 50
+            idleTime: 30
+          mqtt: mqtt://localhost:1883
+          allow_keys:
+          - 1234567890abcdef
+          - 1234567890abcggg
+          ignore_mertic_keys:
+          - verified
+          - crc
+          - modbus
+          - modbus_state
+          EOF
+
+      - name: Build executable
+        run: stack --no-terminal --install-ghc build
+
+      - name: Start server and run integration test
+        run: |
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/1883) >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          stack --no-terminal --install-ghc run -- --config config.ci.yaml --table_prefix ci > /tmp/yuntan-device.log 2>&1 &
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || true)
+            if [ "$code" != "000" ]; then
+              break
+            fi
+            sleep 1
+          done
+          if [ "${code:-000}" = "000" ]; then
+            cat /tmp/yuntan-device.log
+            exit 1
+          fi
+          python3 test/test.py
+
+      - name: Print server log on failure
+        if: failure()
+        run: |
+          echo "===== yuntan-device.log ====="
+          cat /tmp/yuntan-device.log || true

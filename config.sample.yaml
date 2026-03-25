@@ -1,11 +1,11 @@
 max_qps: 100
 # Max QPS of API
 
-attr_to_meta: true
+attr_to_meta: false
 # ^ Save attribute to device meta
 
 psql:
-  db: yuntan_device
+  db: devicedb
   host: 127.0.0.1
   port: 5432
   user: postgres
