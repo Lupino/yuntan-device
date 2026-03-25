@@ -37,7 +37,7 @@ getIndexDevIdList :: [IndexNameId] -> Page -> PSQL [DeviceID]
 getIndexDevIdList [] _   = pure []
 getIndexDevIdList [x] p  = selectOnly indexs "dev_id" "name_id = ?" (Only x) p0
   where p0 = p { pageOrder = desc "dev_id" }
-getIndexDevIdList nids p = selectInOnly indexs ["DISTINCT dev_id"] "name_id" nids "" () p0
+getIndexDevIdList nids p = selectInOnly indexs "DISTINCT dev_id" "name_id" nids "" () p0
   where p0 = p { pageOrder = desc "dev_id" }
 
 
