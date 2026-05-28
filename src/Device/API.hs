@@ -348,7 +348,7 @@ restoreDenyNonceCache_
 restoreDenyNonceCache_ p = do
   ids <- RawAPI.getDenyNonceIdList p
   mapM_ restoreOneDenyNonceCache ids
-  unless (null ids) $ restoreAllDeviceCache_ p { pageFrom = nextFrom }
+  unless (null ids) $ restoreDenyNonceCache_ p { pageFrom = nextFrom }
 
   where nextFrom = From $ unFrom (pageFrom p) + unSize (pageSize p)
 
