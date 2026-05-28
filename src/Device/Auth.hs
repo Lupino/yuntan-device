@@ -28,7 +28,7 @@ import           Data.Int               (Int64)
 import           Data.Maybe             (catMaybes)
 import           Data.Text              (Text)
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import qualified Data.Text.Lazy         as LT (Text, drop, toStrict)
+import qualified Data.Text.Lazy         as LT (Text, stripPrefix, toStrict)
 import           Database.PSQL          (HasOtherEnv, HasPSQL)
 import           Device.API             (countIndex, getDenyNonce,
                                          getIndexNameId_, setDenyNonce)
@@ -117,15 +117,17 @@ encodeJwt (AuthKey key _) info = Jwt.encode [jwk]  (JwsEncoding HS256) (Claims .
 
 decodeJwt :: MonadRandom m => AuthKey -> LT.Text -> m (Maybe AuthInfo)
 decodeJwt (AuthKey key _) bearerToken = do
-  decoded <- Jwt.decode [jwk] (Just (JwsEncoding HS256)) token
-  case decoded of
-    Left _              -> pure Nothing
-    Right (Jws (_, bs)) -> pure $ Aeson.decodeStrict bs
-    Right (Jwe (_, bs)) -> pure $ Aeson.decodeStrict bs
-    Right (Unsecured _) -> pure Nothing
+  case LT.stripPrefix "Bearer " bearerToken of
+    Nothing -> pure Nothing
+    Just tokenText -> do
+      decoded <- Jwt.decode [jwk] (Just (JwsEncoding HS256)) (encodeUtf8 $ LT.toStrict tokenText)
+      case decoded of
+        Left _              -> pure Nothing
+        Right (Jws (_, bs)) -> pure $ Aeson.decodeStrict bs
+        Right (Jwe (_, bs)) -> pure $ Aeson.decodeStrict bs
+        Right (Unsecured _) -> pure Nothing
 
   where jwk = SymmetricJwk key Nothing Nothing Nothing
-        token = encodeUtf8 . LT.toStrict $ LT.drop 7 bearerToken
 
 getAuthInfo :: HasOtherEnv Cache u => AuthKey -> ActionH u w (Maybe AuthInfo)
 getAuthInfo authKey = do

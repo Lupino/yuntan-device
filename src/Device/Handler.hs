@@ -217,9 +217,9 @@ resultDeviceList getList count = do
 rpcHandler :: (HasPSQL u, Monoid w) => MqttEnv -> Device -> ActionH u w ()
 rpcHandler mqtt_ Device{devUUID = uuid, devKeyId = keyId} = do
   payload <- formParam "payload"
-  tout <- min 300 <$> safeFormParam "timeout" 300
+  tout <- clampTimeout <$> safeFormParam "timeout" 300
   cacheHash <- safeFormParam "cache-hash" ""
-  cacheTimeout <- safeFormParam "cache-timeout" 10
+  cacheTimeout <- max 1 <$> safeFormParam "cache-timeout" 10
   mk <- lift $ getDevKeyById keyId
   case mk of
     Nothing -> err status500 "invalid device"
@@ -234,6 +234,8 @@ rpcHandler mqtt_ Device{devUUID = uuid, devKeyId = keyId} = do
           when (isjson == "json") $
             addHeader "Content-Type" "application/json; charset=utf-8"
           raw v
+
+  where clampTimeout = max 1 . min 300
 
 
 -- POST /api/devices/:ident/metric/

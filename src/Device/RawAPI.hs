@@ -245,7 +245,7 @@ getDenyNonce :: HasPSQL u => DenyNonceID -> GenHaxl u w (Maybe DenyNonce)
 getDenyNonce a = dataFetch (GetDenyNonce a)
 
 dropDenyNonces :: HasPSQL u => Int64 -> GenHaxl u w Int64
-dropDenyNonces = removeBy denyNonces "expires_at < ?" . Only
+dropDenyNonces = removeBy denyNonces "expires_at <= ?" . Only
 
 getDenyNonceIdList :: HasPSQL u => Page -> GenHaxl u w [DenyNonceID]
 getDenyNonceIdList p = map DenyNonceID <$> getIdListAll denyNonces p

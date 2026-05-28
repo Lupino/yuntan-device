@@ -322,14 +322,14 @@ getDenyNonce key = get redisEnv (genDenyNonceKey key)
 
 setDenyNonce :: (HasPSQL u, HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
 setDenyNonce key expiresAt = do
-  setDenyNonce_ key expiresAt
-  void $ RawAPI.createDenyNonce key expiresAt
   now <- Util.getEpochTime
+  when (expiresAt > now) $ do
+    setDenyNonce_ key expiresAt now
+    void $ RawAPI.createDenyNonce key expiresAt
   void $ RawAPI.dropDenyNonces now
 
-setDenyNonce_ :: (HasOtherEnv Cache u) => String -> Int64 -> GenHaxl u w ()
-setDenyNonce_ key expiresAt = do
-  now <- Util.getEpochTime
+setDenyNonce_ :: (HasOtherEnv Cache u) => String -> Int64 -> Int64 -> GenHaxl u w ()
+setDenyNonce_ key expiresAt now = do
   set redisEnv rkey expiresAt
   expire redisEnv rkey (fromIntegral (expiresAt - now))
 
@@ -359,7 +359,10 @@ restoreOneDenyNonceCache nid = do
   mNonce <- RawAPI.getDenyNonce nid
   case mNonce of
     Nothing    -> pure ()
-    Just nonce -> setDenyNonce_ (nonceName nonce) (nonceExpiresAt nonce)
+    Just nonce -> do
+      now <- Util.getEpochTime
+      when (nonceExpiresAt nonce > now) $
+        setDenyNonce_ (nonceName nonce) (nonceExpiresAt nonce) now
 
 
 setPingAt :: (HasOtherEnv Cache u) => DeviceID -> CreatedAt -> GenHaxl u w ()
