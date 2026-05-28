@@ -109,7 +109,7 @@ program Options
       attrToMeta   = C.attrToMeta conf
       ignoreKeys   = C.ignoreMerticKeys conf
 
-  sem <- newQSem qps
+  sem <- newQSem (max 1 qps)
 
   pool <- C.genPSQLPool psqlConfig
   redis <- C.genRedisConnection redisConfig

@@ -157,7 +157,9 @@ cacheAble MqttEnv {..} h t io = do
     Nothing -> do
       ro <- io
       case ro of
-        Nothing -> return Nothing
+        Nothing -> do
+          atomically $ Cache.deleteSTM h mReqCache
+          return Nothing
         Just vo -> do
           Cache.insert' mReqCache (Just $ TimeSpec t 0) h (Just vo)
           return $ Just vo
