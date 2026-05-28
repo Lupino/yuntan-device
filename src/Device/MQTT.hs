@@ -46,6 +46,23 @@ data MqttEnv = MqttEnv
   , mAllowKeys :: [Key]
   }
 
+safePublish
+  :: TVar (Maybe MQTTClient)
+  -> MQTTClient
+  -> Topic
+  -> ByteString
+  -> Bool
+  -> IO Bool
+safePublish mClientVar c topic payload retain = do
+  r <- try $ publish c topic payload retain
+  case r of
+    Left (e :: SomeException) -> do
+      atomically $ writeTVar mClientVar Nothing
+      errorM "Device.MQTT" $
+        "Publish failed on topic " ++ show topic ++ ": " ++ show e
+      pure False
+    Right _ -> pure True
+
 -- /:key/:uuid/request/:requestid
 requestTopic :: Key -> UUID -> Text -> Maybe Topic
 requestTopic k uid rid = mkTopic $ "/" <> unKey k <> "/" <> unUUID uid <> "/request/" <> rid
@@ -96,18 +113,20 @@ request MqttEnv {..} uuid p t = do
       case requestTopic mKey uuid reqid of
         Nothing -> return Nothing
         Just topic -> do
-          publish c topic p False
+          ok <- safePublish mClient c topic p False
+          unless ok $ atomically $ Cache.deleteSTM k mResCache
 
-          now <- getTime Monotonic
+          if not ok then pure Nothing else do
+            now <- getTime Monotonic
 
-          atomically $ do
-            r <- Cache.lookupSTM True k mResCache now
-            case r of
-              Nothing -> pure Nothing
-              Just Nothing -> retry
-              Just v -> do
-                Cache.deleteSTM k mResCache
-                pure v
+            atomically $ do
+              r <- Cache.lookupSTM True k mResCache now
+              case r of
+                Nothing -> pure Nothing
+                Just Nothing -> retry
+                Just v -> do
+                  Cache.deleteSTM k mResCache
+                  pure v
 
 
 -- sendDrop env uuid
@@ -119,7 +138,7 @@ sendDrop MqttEnv {..} uuid = do
     Just c  ->
       case dropTopic mKey uuid of
         Nothing    -> return ()
-        Just topic -> publish c topic "" False
+        Just topic -> void $ safePublish mClient c topic "" False
 
 cacheAble :: MqttEnv -> Text -> Int64 -> IO (Maybe ByteString) -> IO (Maybe ByteString)
 cacheAble MqttEnv {..} h t io = do
@@ -145,8 +164,8 @@ cacheAble MqttEnv {..} h t io = do
 
 messageCallback
   :: SaveMetric
-  -> ResponseCache -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
-messageCallback saveMetric resCache c topic payload _ =
+  -> ResponseCache -> TVar (Maybe MQTTClient) -> MQTTClient -> Topic -> ByteString -> [Property] -> IO ()
+messageCallback saveMetric resCache mClientVar c topic payload _ =
   case splitOn "/" (unTopic topic) of
     (_:_:uuid:"response":reqid:_) -> do
       let k = responseKey uuid reqid
@@ -163,7 +182,7 @@ messageCallback saveMetric resCache c topic payload _ =
     (_:_:uuid:"attributes":_) ->
       unless (payload == "") $ do
         saveMetric "attributes" (UUID uuid) payload
-        publish c topic "" True
+        void $ safePublish mClientVar c topic "" True
     (_:_:uuid:"telemetry":_)  -> saveMetric "telemetry" (UUID uuid) payload
     (_:_:uuid:"ping":_)       -> saveMetric "ping" (UUID uuid) online
     _ -> pure ()
@@ -187,7 +206,7 @@ startMQTT keys mqttURI saveMetric = do
   clientId <- genHex 20
 
   let conf = mqttConfig
-        { _msgCB = SimpleCallback (messageCallback saveMetric resCache)
+        { _msgCB = SimpleCallback (messageCallback saveMetric resCache mc)
         , _protocol = Protocol311
         }
 
@@ -207,7 +226,9 @@ startMQTT keys mqttURI saveMetric = do
       atomically $ writeTVar mc Nothing
 
     case r of
-      Left (e::SomeException) -> errorM "Device.MQTT" $ "MqttClient Error: " ++ show e
+      Left (e::SomeException) -> do
+        atomically $ writeTVar mc Nothing
+        errorM "Device.MQTT" $ "MqttClient Error: " ++ show e
       Right _                 -> pure ()
 
     threadDelay 1000000
