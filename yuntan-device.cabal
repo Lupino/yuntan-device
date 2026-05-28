@@ -1,5 +1,5 @@
 name:                yuntan-device
-version:             0.1.2.1
+version:             0.2.6.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
 homepage:            https://github.com/Lupino/yuntan-user#readme
@@ -86,7 +86,6 @@ executable yuntan-device
                      , warp
                      , streaming-commons
                      , wai-extra
-                     , data-default-class
                      , yaml
                      , psql-utils
                      , scotty-haxl

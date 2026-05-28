@@ -1,4 +1,4 @@
-{ compiler-nix-name ? "ghc9122", enableProfiling ? false }:
+{ compiler-nix-name ? "ghc9124", enableProfiling ? false }:
 let
   # Read in the Niv sources
   sources = import ./nix/sources.nix {};
@@ -36,7 +36,7 @@ in pkgs.haskell-nix.cabalProject {
     # 'cleanGit' cleans a source directory based on the files known by git
     src = pkgs.haskell-nix.haskellLib.cleanGit {
       src = ./.;
-      name = "haskell-periodic";
+      name = "yuntan-device";
     };
     # Use index state from hackage.nix
     index-state = latestState;

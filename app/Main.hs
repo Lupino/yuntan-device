@@ -9,15 +9,14 @@ import           Control.Concurrent.QSem
 import qualified Control.Exception                    as CE (bracket_)
 import           Control.Monad                        (void, when)
 import qualified Data.Aeson.Key                       as Key (Key)
-import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
 import           System.Exit                          (exitFailure, exitSuccess)
 import           System.IO                            (hPutStrLn, stderr)
-import           Web.Scotty.Trans                     (delete, get, middleware,
-                                                       post, scottyOptsT,
-                                                       settings)
+import           Web.Scotty.Trans                     (defaultOptions, delete,
+                                                       get, middleware, post,
+                                                       scottyOptsT, settings)
 
 import           Data.String                          (fromString)
 import           Database.PSQL                        (HasOtherEnv, HasPSQL,
@@ -120,9 +119,9 @@ program Options
         stateEmpty
       runIO0 = CE.bracket_ (waitQSem sem) (signalQSem sem) . runIO u s
 
-      opts = def
+      opts = defaultOptions
         { settings = setPort port
-                   $ setHost (Host host) (settings def)
+                   $ setHost (Host host) (settings defaultOptions)
         }
 
 
