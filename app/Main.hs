@@ -13,7 +13,8 @@ import           Data.Default.Class                   (def)
 import           Data.Streaming.Network.Internal      (HostPreference (Host))
 import           Network.Wai.Handler.Warp             (setHost, setPort)
 import           Network.Wai.Middleware.RequestLogger (logStdout)
-import           System.Exit                          (exitSuccess)
+import           System.Exit                          (exitFailure, exitSuccess)
+import           System.IO                            (hPutStrLn, stderr)
 import           Web.Scotty.Trans                     (delete, get, middleware,
                                                        post, scottyOptsT,
                                                        settings)
@@ -87,7 +88,12 @@ program Options
   , getDryRun      = dryRun
   } = do
 
-  (Right conf) <- Y.decodeFileEither confFile
+  eConf <- Y.decodeFileEither confFile
+  conf <- case eConf of
+    Left pe -> do
+      hPutStrLn stderr $ "Failed to parse config file " ++ confFile ++ ": " ++ Y.prettyPrintParseException pe
+      exitFailure
+    Right c -> pure c
 
   let psqlConfig   = C.psqlConfig conf
       psqlMaxPool  = C.psqlPoolMaxResources psqlConfig
