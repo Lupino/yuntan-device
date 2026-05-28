@@ -438,7 +438,7 @@ emqx5AuthReqHandler config = do
     Nothing -> json $ object [ "result" .= ("ignore" :: String) ]
     Just EmqxSuperAdmin  -> json $ object
       [ "result" .= ("allow" :: String)
-      , "is_superuser'" .= True
+      , "is_superuser" .= True
       , "client_attrs" .= object
         [ "tns" .= ("" :: String)
         ]
@@ -446,7 +446,7 @@ emqx5AuthReqHandler config = do
 
     Just (EmqxAdmin (EmqxMountPoint p))  -> json $ object
       [ "result" .= ("allow" :: String)
-      , "is_superuser'" .= False
+      , "is_superuser" .= False
       , "client_attrs" .= object
         [ "tns" .= p
         ]
@@ -472,7 +472,7 @@ emqx5AuthReqHandler config = do
 
     Just (EmqxNormal (EmqxMountPoint p))  -> json $ object
       [ "result" .= ("allow" :: String)
-      , "is_superuser'" .= False
+      , "is_superuser" .= False
       , "client_attrs" .= object
         [ "tns" .= p
         ]
