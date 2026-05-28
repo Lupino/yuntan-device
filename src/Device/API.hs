@@ -102,6 +102,12 @@ genDeviceKey (DeviceID devid) = fromString $ "kv:device:" ++ show devid
 genMetricKey :: DeviceID -> ByteString
 genMetricKey (DeviceID devid) = fromString $ "hs:metric:" ++ show devid
 
+genMetricDedupeValueKey :: DeviceID -> ByteString
+genMetricDedupeValueKey (DeviceID devid) = fromString $ "hs:metric_dedupe:value:" ++ show devid
+
+genMetricDedupeAtKey :: DeviceID -> ByteString
+genMetricDedupeAtKey (DeviceID devid) = fromString $ "hs:metric_dedupe:created_at:" ++ show devid
+
 genCardsKey :: DeviceID -> ByteString
 genCardsKey (DeviceID devid) = fromString $ "hs:cards:" ++ show devid
 
@@ -118,7 +124,10 @@ unCacheDevice:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w 
 unCacheDevice devid io = io $> remove redisEnv (genDeviceKey devid)
 
 unCacheMetric:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
-unCacheMetric devid io = io $> remove redisEnv (genMetricKey devid)
+unCacheMetric devid io = io $> do
+  remove redisEnv (genMetricKey devid)
+  remove redisEnv (genMetricDedupeValueKey devid)
+  remove redisEnv (genMetricDedupeAtKey devid)
 
 unCacheCards:: HasOtherEnv Cache u => DeviceID -> GenHaxl u w a -> GenHaxl u w a
 unCacheCards devid io = io $> remove redisEnv (genCardsKey devid)
@@ -431,13 +440,22 @@ saveMetricRaw
   :: (HasPSQL u, HasOtherEnv Cache u)
   => DeviceID -> Param -> String -> Float -> CreatedAt -> GenHaxl u w Int64
 saveMetricRaw did param sval val ct = do
-  oval <- hget' redisEnv k f
-  if oval == Just val then
+  mLastValue <- hget' redisEnv dedupeValueKey f
+  mLastCreatedAt <- hget' redisEnv dedupeAtKey f
+
+  if mLastValue == Just sval && maybe False isWithinOneMinute mLastCreatedAt then
     pure 0
   else do
-    hset redisEnv k f val
+    hset redisEnv metricKey f val
+    hset redisEnv dedupeValueKey f sval
+    hset redisEnv dedupeAtKey f createdAt
     RawAPI.saveMetric did param sval val ct
-  where k = genMetricKey did
+  where metricKey = genMetricKey did
+        dedupeValueKey = genMetricDedupeValueKey did
+        dedupeAtKey = genMetricDedupeAtKey did
+        createdAt = unCreatedAt ct
+        isWithinOneMinute lastCreatedAt =
+          createdAt >= lastCreatedAt && (createdAt - lastCreatedAt) <= 60
         f = encodeUtf8 (unParam param)
 
 

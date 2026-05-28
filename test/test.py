@@ -166,6 +166,10 @@ def test_metric_same_value(ident):
     ret = get_metric_list(ident, 'temperature')
     check_equal(ret['total'], 1)
 
+    save_metric(ident, [{'temperature': 28.2, 'created_at': 61}])
+    ret = get_metric_list(ident, 'temperature')
+    check_equal(ret['total'], 2)
+
     ret = drop_metric(ident, 'temperature')
     check_equal(ret, {'result': 'OK'}, 'result')
 
