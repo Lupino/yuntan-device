@@ -58,7 +58,7 @@ import           Device.MQTT            (MqttEnv (mKey), cacheAble, request,
                                          sendDrop)
 import           Device.Util            (getEpochTime)
 import           Haxl.Core              (GenHaxl)
-import           Network.HTTP.Types     (status400, status500)
+import           Network.HTTP.Types     (status400, status500, status504)
 import           Web.Scotty.Haxl        (ActionH)
 import           Web.Scotty.Trans       (addHeader, captureParam, formParam,
                                          json, jsonData, raw, text)
@@ -228,7 +228,7 @@ rpcHandler mqtt_ Device{devUUID = uuid, devKeyId = keyId} = do
           ca = if T.null cacheHash then id else cacheAble mqtt cacheHash cacheTimeout
       r <- liftIO $ ca $ request mqtt uuid payload tout
       case r of
-        Nothing -> err status500 "request timeout"
+        Nothing -> err status504 "request timeout"
         Just v  -> do
           isjson <- safeFormParam "format" ("raw" :: String)
           when (isjson == "json") $

@@ -207,43 +207,56 @@ fetchSync reqs@((BlockedFetch (GetLastMetricIdList _) _):_) prefix pool = do
   e <- CE.try $ runPSQLPool prefix pool (getLastMetricIdList' ids)
   case e of
     Left ex -> mapM_ (putFail ex) reqs
-    Right a ->  mapM_ (putReq (groupBy isSameDev a)) reqs
+    Right a ->  mapM_ (putReq (toMetricBuckets a)) reqs
 
   where ids = [i | BlockedFetch (GetLastMetricIdList i) _ <- reqs]
 
-        isSameDev :: (DeviceID, Param, MetricID) -> (DeviceID, Param, MetricID) -> Bool
-        isSameDev (x, _, _) (y, _, _) = x == y
+        toMetricBuckets :: [(DeviceID, Param, MetricID)] -> [(DeviceID, [(Param, MetricID)])]
+        toMetricBuckets = foldr go []
+          where go (did, param, mid) = insertOrAppend did [(param, mid)]
 
-        rmDid :: (DeviceID, Param, MetricID) -> (Param, MetricID)
-        rmDid (_, x, y) = (x, y)
+        insertOrAppend :: DeviceID -> [(Param, MetricID)] -> [(DeviceID, [(Param, MetricID)])] -> [(DeviceID, [(Param, MetricID)])]
+        insertOrAppend did vals [] = [(did, vals)]
+        insertOrAppend did vals ((k, oldVals):xs)
+          | did == k  = (k, vals <> oldVals) : xs
+          | otherwise = (k, oldVals) : insertOrAppend did vals xs
 
-        putReq :: [[(DeviceID, Param, MetricID)]] -> BlockedFetch DeviceReq ->  IO ()
-        putReq [] (BlockedFetch (GetLastMetricIdList _) rvar) = putSuccess rvar []
-        putReq ([]:xs) req = putReq xs req
-        putReq (x@((did, _, _):_):xs) req@(BlockedFetch (GetLastMetricIdList i) rvar)
-          | i == did = putSuccess rvar (map rmDid x)
-          | otherwise = putReq xs req
+        findVals :: DeviceID -> [(DeviceID, [(Param, MetricID)])] -> [(Param, MetricID)]
+        findVals _ [] = []
+        findVals did ((k, vals):xs)
+          | did == k  = vals
+          | otherwise = findVals did xs
 
+        putReq :: [(DeviceID, [(Param, MetricID)])] -> BlockedFetch DeviceReq -> IO ()
+        putReq buckets (BlockedFetch (GetLastMetricIdList i) rvar) = putSuccess rvar (findVals i buckets)
         putReq _ _ = return ()
 
 fetchSync reqs@((BlockedFetch (GetIndexList _) _):_) prefix pool = do
   e <- CE.try $ runPSQLPool prefix pool (getIndexList ids)
   case e of
     Left ex -> mapM_ (putFail ex) reqs
-    Right a ->  mapM_ (putReq (groupBy isSameDev a)) reqs
+    Right a ->  mapM_ (putReq (toIndexBuckets a)) reqs
 
   where ids = [i | BlockedFetch (GetIndexList i) _ <- reqs]
 
-        isSameDev :: Index -> Index -> Bool
-        isSameDev x y = indexDevId x == indexDevId y
+        toIndexBuckets :: [Index] -> [(DeviceID, [Index])]
+        toIndexBuckets = foldr go []
+          where go index = insertOrAppend (indexDevId index) [index]
 
-        putReq :: [[Index]] -> BlockedFetch DeviceReq ->  IO ()
-        putReq [] (BlockedFetch (GetIndexList _) rvar) = putSuccess rvar []
-        putReq ([]:xs) req = putReq xs req
-        putReq (x@(index:_):xs) req@(BlockedFetch (GetIndexList i) rvar)
-          | i == indexDevId index = putSuccess rvar x
-          | otherwise = putReq xs req
+        insertOrAppend :: DeviceID -> [Index] -> [(DeviceID, [Index])] -> [(DeviceID, [Index])]
+        insertOrAppend did vals [] = [(did, vals)]
+        insertOrAppend did vals ((k, oldVals):xs)
+          | did == k  = (k, vals <> oldVals) : xs
+          | otherwise = (k, oldVals) : insertOrAppend did vals xs
 
+        findVals :: DeviceID -> [(DeviceID, [Index])] -> [Index]
+        findVals _ [] = []
+        findVals did ((k, vals):xs)
+          | did == k  = vals
+          | otherwise = findVals did xs
+
+        putReq :: [(DeviceID, [Index])] -> BlockedFetch DeviceReq -> IO ()
+        putReq buckets (BlockedFetch (GetIndexList i) rvar) = putSuccess rvar (findVals i buckets)
         putReq _ _ = return ()
 
 fetchSync reqs@((BlockedFetch (GetIdByCol tb col _) _):_) prefix pool = do
