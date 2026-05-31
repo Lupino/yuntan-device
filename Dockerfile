@@ -1,4 +1,4 @@
-FROM alpine:3.13.5
+FROM alpine:3.23.4
 COPY dist/musl64/yuntan-device /usr/bin/
 COPY config.sample.yaml /config.yaml
 
