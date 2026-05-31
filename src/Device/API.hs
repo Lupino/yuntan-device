@@ -41,7 +41,7 @@ module Device.API
 import           Control.Monad          (forM, unless, void, when)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson             (Value (..), decode, encode, object,
-                                         (.=))
+                                         toJSON, (.=))
 import           Data.Aeson.Helper      (union)
 import qualified Data.Aeson.Key         as Key (Key, fromText, toText)
 import qualified Data.Aeson.KeyMap      as KeyMap (filterWithKey, lookup,
@@ -78,7 +78,7 @@ import qualified Device.Util            as Util (getEpochTime)
 import           Haxl.Core              (GenHaxl)
 import           Haxl.RedisCache        (cached, cached', expire, get, hdel,
                                          hget', hgetallKV, hgetallV, hset,
-                                         remove, set)
+                                         hsetMany, remove, set)
 import           System.Entropy         (getEntropy)
 import           Text.Read              (readMaybe)
 import           Web.Scotty.Haxl        ()
@@ -449,9 +449,11 @@ saveMetricRaw did param sval val ct = do
   if mLastValue == Just sval && maybe False isWithinOneMinute mLastCreatedAt then
     pure 0
   else do
-    hset redisEnv metricKey f val
-    hset redisEnv dedupeValueKey f sval
-    hset redisEnv dedupeAtKey f createdAt
+    hsetMany redisEnv
+      [ (metricKey, f, toJSON val)
+      , (dedupeValueKey, f, toJSON sval)
+      , (dedupeAtKey, f, toJSON createdAt)
+      ]
     RawAPI.saveMetric did param sval val ct
   where metricKey = genMetricKey did
         dedupeValueKey = genMetricDedupeValueKey did
